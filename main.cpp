@@ -8,6 +8,7 @@ int main(int argc, char **argv)
     Window window;
 
     prog.setWindowIcon(QIcon("./stuff/icon64.png"));
+
     window.show();
     return prog.exec();
 }

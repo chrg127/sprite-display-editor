@@ -5,8 +5,8 @@ QT = core gui
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
-SOURCES += main.cpp window.cpp 
-HEADERS += window.h
+SOURCES += window.cpp sprite.cpp main.cpp
+HEADERS += window.h sprite.h
 CONFIG += debug_and_release
 
 Release:DESTDIR = release
