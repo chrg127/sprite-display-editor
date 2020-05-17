@@ -1,4 +1,4 @@
-#include "window.h"
+#include "main_window.h"
 
 #include <QDebug>
 #include <QObject>
@@ -10,16 +10,18 @@
 #include <QAction>
 #include <QPushButton>
 #include <QLabel>
-#include <QListView>
+#include <QListWidget>
 #include <QLineEdit>
 #include <QStatusBar>
 #include <QKeySequence>
 #include <QFileDialog>
 #include <QString>
+#include <QDir>
+#include "sprite.h"
 
 #define DEBUG
 
-Window::Window(QWidget *parent)
+MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
     setMinimumSize(500, 500);
@@ -27,31 +29,27 @@ Window::Window(QWidget *parent)
     center_widget = new QWidget(this);
     setCentralWidget(center_widget);
     statusBar()->showMessage("Hello world!");
+    last_dir = QDir::homePath();
 
-    createactions();
     createmenu();
     createbuttons();
     createlabels();
-    createlistview();
+    createlistwidget();
     createlineedits();
 }
 
-void Window::createactions(void)
+void MainWindow::createmenu(void)
 {
-    openact = new QAction("&Open", this);
+    QAction *act;
 
-    openact->setShortcuts(QKeySequence::Open);
-    connect(openact, &QAction::triggered, this, &Window::open_file);
-}
-
-void Window::createmenu(void)
-{
     filemenu = menuBar()->addMenu("&File");
-    filemenu->addAction(openact);
+    act = new QAction("&Open", this);
+    connect(act, &QAction::triggered, this, &MainWindow::open_file);
+    filemenu->addAction(act);
     aboutmenu = menuBar()->addMenu("&About");
 }
 
-void Window::createbuttons(void)
+void MainWindow::createbuttons(void)
 {
     addspritebtn = new QPushButton("Add new sprite", center_widget);
     moveupbtn    = new QPushButton("Move up",        center_widget);
@@ -69,7 +67,7 @@ void Window::createbuttons(void)
     editlookbtn->setToolTip("Edit the graphics used by the sprite.");
 }
 
-void Window::createlabels(void)
+void MainWindow::createlabels(void)
 {
     namelabel = new QLabel("Sprite name: ",    center_widget);
     cmdlabel  = new QLabel("Sprite command: ", center_widget);
@@ -79,17 +77,16 @@ void Window::createlabels(void)
     namelabel->setGeometry(135, 45, 120, 30);
     cmdlabel->setGeometry(135, 65, 120, 30);
     tiplabel->setGeometry(135, 105, 120, 30);
-    romnamelabel->setGeometry(25, 10, 120, 30);
+    romnamelabel->setGeometry(25, 10, 150, 30);
 }
 
-void Window::createlistview(void)
+void MainWindow::createlistwidget(void)
 {
-    spritelistview = new QListView(center_widget);
-
-    spritelistview->setGeometry(25, 45, 100, 300);
+    spritelistwidget = new QListWidget(center_widget);
+    spritelistwidget->setGeometry(25, 45, 100, 300);
 }
 
-void Window::createlineedits(void)
+void MainWindow::createlineedits(void)
 {
     namebox = new QLineEdit(center_widget);
     cmdbox  = new QLineEdit(center_widget);
@@ -99,26 +96,44 @@ void Window::createlineedits(void)
     cmdbox->setGeometry(265, 65, 120, 30);
     tipbox->setGeometry(265, 105, 120, 30);
 }
-/*    QObject::connect(addsprite, SIGNAL(clicked()), obj, 
-            SLOT(dostuff()));
-    QObject::connect(addsprite, SIGNAL(clicked(bool)), this,
-            SLOT(buttonclicked(bool)));
-    QObject::connect(this, SIGNAL(counter_reached()), 
-            QApplication::instance(), SLOT(quit()));*/
 
-void Window::open_file(bool checked)
+
+
+/* ************ Slots ************
+ * open_file: opens the 4 files associated to the ROM and creates the sprite list
+ * close_file: clears the sprite list (and associated widgets). doesn't save anything.
+ * save_file: saves everything to files
+ */
+void MainWindow::open_file(bool checked)
 {
-    QString filename;
+    QString name;
 
-#ifdef DEBUG
-    qDebug() << "received a request to open a file\n" << "checked: " 
-           << checked << '\n';
-#endif
-    filename = QFileDialog::getOpenFileName(this, "Open Image", "/", 
+    name = QFileDialog::getOpenFileName(this, "Open Image", last_dir, 
             "SNES ROM files (*.smc *.sfc)");
 #ifdef DEBUG
-    qDebug() << "Chose file " << filename;
+    qDebug() << "filename: " << name;
 #endif
-    romnamelabel->setText("ROM name: " + filename);
+    if (name == "")
+        return;
+    
+    romnamelabel->setText("ROM name: " + QFileInfo(name).fileName());
+    last_dir = name;
+
+    /*spritelist = get_sprite_list();
+    if ((*spritelist).size() == 0) {
+        //QMessageBox::critical(this, "No sprite found."
+        return;
+    }
+
+    for (auto &s : *spritelist)
+        spritelistwidget->addItem(s.name);*/
+}
+
+void MainWindow::close_file(bool checked)
+{
+}
+
+void MainWindow::save_file(bool checked)
+{
 }
 

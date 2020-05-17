@@ -2,22 +2,24 @@
 #define _WINDOW_H
 
 #include <QMainWindow>
+#include "tool.h"
+#include "sprite.h"
 
 class QPushButton;
 class QLabel;
-class QListView;
+class QListWidget;
 class QLineEdit;
 class QMenu;
 
-class Window : public QMainWindow {
+class MainWindow : public QMainWindow {
     Q_OBJECT
 
 private:
-    QWidget *center_widget;
+    Tool *tool;
 
+    QWidget *center_widget;
     QMenu *filemenu;
     QMenu *aboutmenu;
-    QAction *openact;
     QPushButton *addspritebtn;
     QPushButton *moveupbtn;
     QPushButton *movedownbtn;
@@ -26,28 +28,29 @@ private:
     QLabel *cmdlabel;
     QLabel *tiplabel;
     QLabel *romnamelabel;
-    QListView *spritelistview;
+    QListWidget *spritelistwidget;
     QLineEdit *namebox;
     QLineEdit *cmdbox;
     QLineEdit *tipbox;
+
+    QString last_dir;
 
     void createactions(void);
     void createmenu(void);
     void createbuttons(void);
     void createlabels(void);
-    void createlistview(void);
+    void createlistwidget(void);
     void createlineedits(void);
     
 public:
-    explicit Window(QWidget *parent = 0);
-    void open_file(bool checked);
-
-signals:
+    explicit MainWindow(QWidget *parent = 0);
 
 public slots:
-
-private slots:
+    void open_file(bool checked);
+    void close_file(bool checked);
+    void save_file(bool checked);
 
 };
 
 #endif
+

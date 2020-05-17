@@ -1,14 +1,15 @@
 #include <QApplication>
 #include <QMainWindow>
-#include "window.h"
+#include <QDebug>
+#include <QString>
+#include "main_window.h"
 
 int main(int argc, char **argv)
 {
-    QApplication prog(argc, argv);
-    Window window;
+    QApplication a(argc, argv);
+    //MainWindow window;
 
-    prog.setWindowIcon(QIcon("./stuff/icon64.png"));
-
-    window.show();
-    return prog.exec();
+    a.setWindowIcon(QIcon("./stuff/icon64.png"));
+    //window.show();
+    return a.exec();
 }
