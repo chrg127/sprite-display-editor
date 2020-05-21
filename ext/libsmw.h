@@ -2,16 +2,22 @@
 // Here is my attempt at "unglobalizing" every variable and have this entire thing
 // make sense.
 
-
 #pragma once
 
-#include "errors.h"
-#include "autoarray.h"
-#include <cstdint>
+#ifndef _LIBSMW_H_
+#define _LIBSMW_H_
 
-extern const unsigned char * romdata;
-extern int romlen;
-extern asar_error_id openromerror;
+#include <stdio.h>
+#include <stdint.h>
+#include "asar_errors_small.h"
+//#include "autoarray.h"
+
+namespace LibSMW {
+
+extern asar_errid openromerror;
+
+//extern const unsigned char * romdata;
+//extern int romlen;
 //extern autoarray<writtenblockdata> writtenblocks;
 
 enum mapper_t {
@@ -41,13 +47,17 @@ struct SnesRom {
     bool header;
 };
 
-void init_rom(SnesRom *rom);
-
 bool openrom(SnesRom *rom, const char * filename, bool confirm=true);
-uint32_t closerom(bool save = true, const unsigned char *romdata);
+uint32_t closerom(SnesRom *rom, bool save = true);
 
+bool findmapper(SnesRom *rom);
+int check_header(SnesRom *rom, mapper_t mapper);
 
+int snestopc(int addr, mapper_t rommapper);
+int pctosnes(int addr, mapper_t rommapper);
 
+}
+/*
 void writeromdata(int pcoffset, const void * indata, int numbytes,
                 const unsigned char * romdata, mapper_t rommapper);
                 
@@ -57,11 +67,6 @@ void writeromdata_byte(int pcoffset, unsigned char indata,
 void writeromdata_bytes(int pcoffset, unsigned char indata, int numbytes,
                 const unsigned char * romdata, mapper_t rommapper);
                 
-                
-
-int snestopc(int addr, mapper_t rommapper);
-int pctosnes(int addr, mapper_t rommapper);
-
 
 
 int getpcfreespace(mapper_t rommapper, const unsigned char *romdata, 
@@ -94,3 +99,6 @@ void WalkMetadata(const unsigned char * romdata, mapper_t rommapper, int loc,
 bool goodchecksum(const unsigned char *romdata, mapper_t rommapper);
 
 void fixchecksum(const unsigned char *romdata, mapper_t rommapper);
+*/
+
+#endif

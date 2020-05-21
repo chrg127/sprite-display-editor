@@ -1,37 +1,405 @@
-//#include "std-includes.h"
 #include "libsmw.h"
 
-#include <new>//placement new
-#include <stdlib.h>//malloc, realloc, free
-#include <string.h>//strcmp, memmove
+#include <new>      //placement new
+#include <stdlib.h> //malloc, realloc, free
+#include <string.h> //strcmp, memmove
 #include <stdio.h>
 #include <ctype.h>
 #include <math.h>
-#include <cstdio>
-
-#include "autoarray.h"
-//#include "errors.h"
-//#include "asar.h"
+#include <stdio.h>
+#include <stdint.h>
+#include "asar_errors_small.h"
 #include "crc32.h"
-#include <cstdint>
 
-static int sa1banks[8]={0<<20, 1<<20, -1, -1, 2<<20, 3<<20, -1, -1};
+//#include "std-includes.h"
+//#include "autoarray.h"
+//#include "asar.h"
+
+#if defined(linux) && !defined(stricmp)
+#define STRCMP_NOCASE strcasecmp
+#else
+#define STRCMP_NOCASE stricmp
+#endif
 
 
 //mapper_t mapper=lorom;
-const unsigned char * romdata= nullptr; // NOTE: Changed into const to prevent direct write access - use writeromdata() functions below
-int romlen;
-static bool header;
-static FILE * thisfile;
-
-asar_error_id openromerror;
-
-autoarray<writtenblockdata> writtenblocks;
+//const unsigned char * romdata= nullptr; // NOTE: Changed into const to prevent direct write access - use writeromdata() functions below
+//int romlen;
+//static bool header;
+//static FILE * thisfile;
 
 
+//autoarray<writtenblockdata> writtenblocks;
+
+/* ********** Public functions *********** */
+
+#define TITLE_SIZE 21
+#define SMWTITLE "SUPER MARIOWORLD     "
+#define HEADER_START 0x00FFC0
+
+/* A few notes about the SNES headers:
+ * SNES ROM headers are located at $00FFC0. They contain:
+ * C0 - Internal ROM title (ASCII encoding)     - 21 bytes;
+ * D5 - Mapping mode and high speed switch      - 1 byte:
+ *   bit 7, 6: always set to 0;
+ *   bit 5:    always set to 1;
+ *   bit 4:    speed flag;
+ *   bit 3-0:  mapping mode;
+ * D6 - Cartridge type                          - 1 byte;
+ *   bit 3-0:  chipset;
+ *   bit 7-4:  co-processor;
+ * D7 - ROM size (log2 (size in kB) rounded up) - 1 byte;
+ * D8 - RAM size (log2 (size in kB) rounded up) - 1 byte;
+ * D9 - Region                                  - 1 byte;
+ * DA - Dev ID                                  - 1 byte;
+ * DB - Version                                 - 1 byte;
+ * DC - Checsum complement                      - 2 bytes;
+ * DE - Checksum                                - 2 bytes;
+ * E0 - Interrupt vectors                       - 32 bytes;
+ *
+ * If the 21st byte of the ROM title ($D4) is set to $00, then the header
+ * uses a second expanded version. It uses bytes $B0-$BF and contains:
+ * B0 - Unused, set to $00                      - 15 bytes;
+ * BF - Third party chip                        - 1 byte;
+ *    If the top 4 bits of offset $D6 are all set, then there's a custom
+ *    third party chip and $BF identifies it.
+ *
+ * If the developer ID ($DA) is set to $33, then the header uses a third
+ * version which frees the 21st byte of the ROM title and uses the other
+ * unused bits at $B0. It contains:
+ * B0 - Dev ID, ASCII encoded                   - 2 bytes;
+ * B2 - Game code, ASCII encoded                - 4 bytes;
+ * B6 - Unused, set to $00                      - 6 bytes;
+ * BC - Flash size (log2 (size in kB) rounded up) - 1 byte;
+ * BD - Expansion RAM, same formula             - 1 byte;
+ * BE - Denotes a special version of the game   - 1 byte;
+ * BF - Same as above.                          - 1 byte;
+ * */
+
+/* Find ROM's mapper. The mapping mode is stored in the lower 5 bits of $D5:
+ *  - 0 0000: LoROM             - $20
+ *  - 0 0001: HiROM             - $21
+ *  - 0 0011: SA-1 ROM          - $23
+ *  - 1 0000: LoROM + FastROM   - $30
+ *  - 1 0001: HiROM + FastROM   - $31
+ *  - 1 0010: ExLoROM           - $32
+ *  - 1 0101: ExHiROM           - $35
+ * The ROM header however will change position depending on the mapping 
+ * mode. This means we have to try every mapping mode and check if the 
+ * header found is the actual header. This is what the first for does.*/
+
+namespace LibSMW {
+
+static int sa1banks[8]={0<<20, 1<<20, -1, -1, 2<<20, 3<<20, -1, -1};
+asar_errid openromerror;
+
+/* Opens a ROM. There's no need to allocate rom. filename should be a file 
+ * name that includes the extension. confirm should controls whether to 
+ * check for ROM header size and ROM header title. 
+ * It might not be wise to set confirm to false. The checks done seem to
+ * be buggy. 
+ * After calling this function, the relevant data can be found in the rom
+ * attributes.
+ * Errors returned: errid_open_rom_failed, errid_open_rom_not_smw_extension,
+ *                  errid_open_rom_not_smw_header */
+bool openrom(SnesRom *rom, const char * filename, bool confirm)
+{
+    int truelen;
+
+	rom->file = fopen(filename, "r+b"); // Open file and return if errors
+	if (!(rom->file)) {
+		openromerror = errid_open_rom_failed;
+		return false;
+	}
+    rom->filename = strdup(filename);
+
+	rom->header = false;                // Find if rom has header
+	if (strlen(filename) > 4) {
+        // Get ptr to extension. Assumes the extension is always 3 chars.
+		const char * fnameend = strchr(filename, '\0') - 4;
+		rom->header = (!STRCMP_NOCASE(fnameend, ".smc"));
+	}
+
+	fseek(rom->file, 0, SEEK_END);      // Get lenght of the rom
+	rom->lenght = ftell(rom->file) - (rom->header*512);
+	if (rom->lenght < 0)
+        rom->lenght = 0;
+
+    // Move cursor to end of header (and start of data) and fill data
+	fseek(rom->file, rom->header*512, SEEK_SET); 
+	rom->data = (unsigned char*) malloc(sizeof(unsigned char)*16*1024*1024);
+    truelen = (int) fread(const_cast<unsigned char*>(rom->data), 1u, 
+                        (size_t) rom->lenght, rom->file);
+
+	if (truelen != rom->lenght) {     // Check for errors with lenght
+		openromerror = errid_open_rom_failed;
+		free(const_cast<unsigned char*>(rom->data));
+		return false;
+	}
+    //Fills area after romdata+romlenght with 0s 
+	memset(const_cast<unsigned char*>(rom->data)+rom->lenght, 0x00, 
+            (size_t) (16*1024*1024-rom->lenght));
+    findmapper(rom);
+
+    if (!confirm)   // Skip checks with lenghts and title if confirm = false
+        return true;
+    
+    // Do a bunch of checks. I'm not entirely sure how the first one works,
+    // it appears to be buggy (tested against a real ROM, these checks return
+    // false).
+	if (snestopc(HEADER_START, rom->mapper)+21 < (int) rom->lenght && 
+        strncmp((const char*)rom->data + snestopc(HEADER_START, rom->mapper), SMWTITLE, TITLE_SIZE));
+	{
+		closerom(rom, false);
+		openromerror = rom->header ? errid_open_rom_not_smw_extension : errid_open_rom_not_smw_header;
+		return false;
+	}
+
+	return true;
+}
+
+/* Closes a rom. save does just what you'd expect. */
+uint32_t closerom(SnesRom *rom, bool save)
+{
+	uint32_t romCrc = 0;
+
+	if (rom->file && save && rom->lenght) {
+		fseek(rom->file, rom->header*512, SEEK_SET);
+		fwrite(const_cast<unsigned char*>(rom->data), 1, 
+                (size_t)rom->lenght, rom->file);
+
+		// do a quick re-read of the header, and include that in the 
+        // crc32 calculation if necessary
+        uint8_t* filedata = (uint8_t *) malloc(sizeof(uint8_t) * 
+                (rom->lenght + rom->header * 512));
+        if (rom->header) {
+            fseek(rom->file, 0, SEEK_SET);
+            fread(filedata, sizeof(uint8_t), 512, rom->file);
+        }
+        memcpy(filedata + (rom->header * 512), rom->data, sizeof(uint8_t) * (size_t)rom->lenght);
+        romCrc = crc32(filedata, (unsigned int) (rom->lenght + rom->header * 512));
+        free(filedata);
+	}
+	if (rom->file)
+        fclose(rom->file);
+	if (rom->data)
+        free(const_cast<unsigned char*>(rom->data));
+    if (rom->filename)
+        free((void *) rom->filename);
+	rom->file = nullptr;
+	rom->data = nullptr;
+	rom->lenght = 0;
+	return romCrc;
+}
+
+/* Finds the mapping mode of the ROM. The mapping mode is found
+ * at $00FFD5, but since we'd have to have the mapping mode already
+ * to convert the address to PC, this function uses another way:
+ * It switches to various mapping modes and checks if there's a 
+ * correct header there. The "most correct" is chosen. $00FFD5 is
+ * later read to find any oddball mapping modes. */
+bool findmapper(SnesRom *rom)
+{
+	int maxscore = -99999;
+	mapper_t bestmap = mapper_t::lorom;
+	mapper_t maps[] = { mapper_t::lorom, mapper_t::hirom, mapper_t::exlorom,
+        mapper_t::exhirom };
+    size_t mapid;
+
+	for (mapid=0; mapid < sizeof(maps)/sizeof(maps[0]); mapid++) {
+        int score = check_header(rom, maps[mapid]);
+        if (score > maxscore) { 
+            maxscore = score;
+            bestmap = rom->mapper;
+        }
+	}
+	rom->mapper = bestmap;
+
+	//detect oddball mappers
+	int mapperbyte = rom->data[snestopc(0x00FFD5, rom->mapper)];
+	int romtypebyte = rom->data[snestopc(0x00FFD6, rom->mapper)];
+	if (rom->mapper == mapper_t::lorom)
+		if (mapperbyte == 0x23 && (romtypebyte == 0x32 || romtypebyte == 0x34 || romtypebyte == 0x35)) 
+            rom->mapper = mapper_t::sa1rom;
+
+	return (maxscore>=0);
+}
+
+/* Checks the header, as explained above. */
+int check_header(SnesRom *rom, mapper_t mapper)
+{
+    int score = 0;
+    int highbits = 0;
+    bool foundnull = false;
+    unsigned char c;
+
+    for (int i = 0; i < TITLE_SIZE; i++) {
+        c = rom->data[snestopc(HEADER_START+i, mapper)];
+        // according to some documents, NUL terminated names are possible 
+        // - but they shouldn't appear in the middle of the name
+        if (foundnull && c)
+            score-=4;
+        if (c >= 128)
+            highbits++;
+        else if (isupper(c))
+            score+=3;
+        else if (c == ' ')
+            score+=2;
+        else if (isdigit(c))
+            score+=1;
+        else if (islower(c))
+            score+=1;
+        else if (c == '-')
+            score+=1;
+        else if (!c)
+            foundnull = true;
+        else
+            score-=3;
+    }
+
+    //high bits set on some, but not all, bytes = unlikely to be a ROM
+    if (highbits>0 && highbits<=14) 
+        score-=21;
+
+    //checksum doesn't match up to 0xFFFF? Not a ROM.
+    if ((rom->data[snestopc(0x00FFDE, rom->mapper)] ^ rom->data[snestopc(0x00FFDC, rom->mapper)]) != 0xFF ||
+        (rom->data[snestopc(0x00FFDF, rom->mapper)] ^ rom->data[snestopc(0x00FFDD, rom->mapper)]) != 0xFF) 
+        score = -99999;
+
+    //too lazy to check the real checksum
+    return score;
+}
+
+/* Converts a SNES address to a PC address. */
+int snestopc(int addr, mapper_t rommapper)
+{
+    if (addr < 0 || addr > 0xFFFFFF)
+        return -1; //not 24bit
+    
+    switch (rommapper) {
+    case mapper_t::lorom:
+        // randomdude999: The low pages ($0000-$7FFF) of banks 70-7D are used
+        // for SRAM, the high pages are available for ROM data though
+        if ((addr & 0xFE0000) == 0x7E0000 || //wram
+            (addr & 0x408000) == 0x000000 || //hardware regs, ram mirrors, other strange junk
+            (addr & 0x708000) == 0x700000) //sram (low parts of banks 70-7D)
+            return -1;
+        addr = ((addr & 0x7F0000) >> 1 | (addr & 0x7FFF));
+        return addr;
+    case mapper_t::hirom:
+        if ((addr & 0xFE0000) == 0x7E0000 || //wram
+            (addr & 0x408000) == 0x000000) //hardware regs, ram mirrors, other strange junk
+            return -1;
+        return addr & 0x3FFFFF;
+    case mapper_t::exlorom:
+        if ((addr & 0xF00000) == 0x700000 || //wram, sram
+            (addr & 0x408000) == 0x000000) //area that shouldn't be used in lorom
+            return -1;
+        if (addr & 0x800000)
+            addr = ((addr & 0x7F0000) >> 1 | (addr & 0x7FFF));
+        else
+            addr = ((addr & 0x7F0000) >> 1 | (addr & 0x7FFF)) + 0x400000;
+        return addr;
+    case mapper_t::exhirom:
+        if ((addr & 0xFE0000) == 0x7E0000 || //wram
+            (addr & 0x408000) == 0x000000) //hardware regs, ram mirrors, other strange junk
+            return -1;
+        if ((addr & 0xC00000) != 0xC00000)
+            return (addr & 0x3FFFFF) | 0x400000;
+        return addr & 0x3FFFFF;
+    case mapper_t::sfxrom:
+        // Asar emulates GSU1, because apparently emulators don't support the extra ROM data from GSU2
+        if ((addr & 0x600000) == 0x600000 || //wram, sram, open bus
+            (addr & 0x408000) == 0x000000 || //hardware regs, ram mirrors, rom mirrors, other strange junk
+            (addr & 0x800000) == 0x800000) //fastrom isn't valid either in superfx
+            return -1;
+        if (addr & 0x400000)
+            return addr & 0x3FFFFF;
+        else
+            return (addr & 0x7F0000) >> 1 | (addr & 0x7FFF);
+    case mapper_t::sa1rom:
+        if ((addr & 0x408000) == 0x008000)
+            return sa1banks[(addr & 0xE00000) >> 21] | ((addr & 0x1F0000) >> 1) | (addr & 0x007FFF);
+        if ((addr & 0xC00000) == 0xC00000)
+            return sa1banks[((addr & 0x100000) >> 20) | ((addr & 0x200000) >> 19)] | (addr & 0x0FFFFF);
+        return -1;
+    case mapper_t::bigsa1rom:
+        if ((addr & 0xC00000) == 0xC00000) //hirom
+            return (addr & 0x3FFFFF) | 0x400000;
+        if ((addr & 0xC00000) == 0x000000 || (addr & 0xC00000) == 0x800000) //lorom
+            if ((addr & 0x008000) == 0x000000)
+                return -1;
+            return (addr & 0x800000) >> 2 | (addr & 0x3F0000) >> 1 | (addr & 0x7FFF);
+        return -1;
+    case mapper_t::norom:
+        return addr;
+    }
+    return -1;
+}
+
+/* Converts a PC address to a SNES address. */
+int pctosnes(int addr, mapper_t rommapper)
+{
+    if (addr < 0)
+        return -1;
+
+    switch (rommapper) {
+    case mapper_t::lorom:
+        if (addr >= 0x400000)
+            return -1;
+        addr = ((addr << 1) & 0x7F0000) | (addr & 0x7FFF) | 0x8000;
+        return addr | 0x800000;
+    case mapper_t::hirom:
+        if (addr >= 0x400000)
+            return -1;
+        return addr | 0xC00000;
+    case mapper_t::exlorom:
+        if (addr >= 0x800000)
+            return -1;
+        if (addr & 0x400000) {
+            addr -= 0x400000;
+            addr = ((addr << 1) & 0x7F0000) | (addr & 0x7FFF) | 0x8000;
+            return addr;
+        } else {
+            addr = ((addr << 1) & 0x7F0000) | (addr & 0x7FFF) | 0x8000;
+            return addr | 0x800000;
+        }
+    case mapper_t::exhirom:
+        if (addr >= 0x800000)
+            return -1;
+        if (addr & 0x400000)
+            return addr;
+        return addr | 0xC00000;
+    case mapper_t::sa1rom:
+        for (int i = 0; i < 8; i++) {
+            if (sa1banks[i] == (addr & 0x700000))
+                return 0x008000 | (i << 21) | ((addr & 0x0F8000) << 1) | (addr & 0x7FFF);
+        }
+        return -1;
+    case mapper_t::bigsa1rom:
+        if (addr >= 0x800000)
+            return -1;
+        if ((addr & 0x400000) == 0x400000)
+            return addr | 0xC00000;
+        if ((addr & 0x600000) == 0x000000)
+            return ((addr << 1) & 0x3F0000) | 0x8000 | (addr & 0x7FFF);
+        if ((addr & 0x600000) == 0x200000)
+            return 0x800000 | ((addr << 1) & 0x3F0000) | 0x8000 | (addr & 0x7FFF);
+        return -1;
+    case mapper_t::sfxrom:
+        if (addr >= 0x200000)
+            return -1;
+        return ((addr << 1) & 0x7F0000) | (addr & 0x7FFF) | 0x8000;
+    case mapper_t::norom:
+        return addr;
+    }
+    return -1;
+}
+
+}
 /* *********** Static functions first ************* */
 
-
+/*
 // RPG Hacker: Uses binary search to find the insert position of our ROM write
 static int findromwritepos(int snesoffset, int searchstartpos, int searchendpos)
 {
@@ -130,7 +498,9 @@ static void handleprot(int loc, char * name, int len, const unsigned char * cont
     }
 }
 
-static int trypcfreespace(int start, int end, int size, int banksize, int minalign, unsigned char freespacebyte, const unsigned char * romdata)
+static int trypcfreespace(const unsigned char * romdata, mapper_t rommapper,
+                        int start, int end, int size, int banksize, int minalign,
+                        unsigned char freespacebyte)
 {
 	while (start+size<=end)
 	{
@@ -171,14 +541,14 @@ static int trypcfreespace(int start, int end, int size, int banksize, int minali
 		if (bad) continue;
 		size-=8;
 		if (size) size--;//rats tags eat one byte more than specified for some reason
-		writeromdata_byte(start+0, 'S', romdata);
-		writeromdata_byte(start+1, 'T', romdata);
-		writeromdata_byte(start+2, 'A', romdata);
-		writeromdata_byte(start+3, 'R', romdata);
-		writeromdata_byte(start+4, (unsigned char)(size&0xFF), romdata);
-		writeromdata_byte(start+5, (unsigned char)((size>>8)&0xFF), romdata);
-		writeromdata_byte(start+6, (unsigned char)((size&0xFF)^0xFF), romdata);
-		writeromdata_byte(start+7, (unsigned char)(((size>>8)&0xFF)^0xFF), romdata);
+		writeromdata_byte(start+0, 'S', romdata, rommapper);
+		writeromdata_byte(start+1, 'T', romdata, rommapper);
+		writeromdata_byte(start+2, 'A', romdata, rommapper);
+		writeromdata_byte(start+3, 'R', romdata, rommapper);
+		writeromdata_byte(start+4, (unsigned char)(size&0xFF), romdata, rommapper);
+		writeromdata_byte(start+5, (unsigned char)((size>>8)&0xFF), romdata, rommapper);
+		writeromdata_byte(start+6, (unsigned char)((size&0xFF)^0xFF), romdata, rommapper);
+		writeromdata_byte(start+7, (unsigned char)(((size>>8)&0xFF)^0xFF), romdata, rommapper);
 		return start+8;
 	}
 	return -1;
@@ -263,107 +633,9 @@ rebootsa1rom:
     return -1;
 }
 
+*/
 
-
-
-
-
-
-
-
-
-
-/* ********** Public functions *********** */
-
-//rom->file
-//rom->lenght
-
-void init_rom(SnesRom *rom)
-{
-    rom->file = NULL;
-    rom->filename = NULL;
-    rom->data = NULL;
-    rom->lenght = 0;
-    rom->mapper = mapper_t::lorom;
-    rom->header = false;
-}
-
-bool openrom(SnesRom *rom, const char * filename, bool confirm)
-{
-    int truelen;
-
-	closerom();
-	rom->file = fopen(filename, "r+b");
-	if (!(rom->file)) {
-		//openromerror = error_id_open_rom_failed;
-		return false;
-	}
-    //rom->filename = filename;
-
-	fseek(rom->file, 0, SEEK_END);
-	rom->header = false;
-	if (strlen(filename) > 4) {
-		const char * fnameend = strchr(filename, '\0')-4;
-		header = (!stricmp(fnameend, ".smc"));
-	}
-
-	rom->lenght = ftell(rom->file) - (header*512);
-	if (rom->lenght < 0)
-        rom->lenght = 0;
-
-	fseek(rom->file, header*512, SEEK_SET);
-	romdata = (unsigned char*) malloc(sizeof(unsigned char)*16*1024*1024);
-
-	truelen = (int) fread(const_cast<unsigned char*>(romdata), 1u, (size_t) rom->lenght, rom->file);
-	if (truelen!=rom->lenght) {
-		openromerror = error_id_open_rom_failed;
-		free(const_cast<unsigned char*>(romdata));
-		return false;
-	}
-
-	memset(const_cast<unsigned char*>(romdata)+rom->lenght, 0x00, (size_t)(16*1024*1024-rom->lenght));
-	if (confirm && 
-        snestopc(0x00FFC0, rom->mapper) + 21<(int)rom->lenght && 
-        strncmp((const char*)romdata + snestopc(0x00FFC0, rom->mapper), "SUPER MARIOWORLD     ", 21))
-	{
-		closerom(false);
-		openromerror = header ? error_id_open_rom_not_smw_extension : error_id_open_rom_not_smw_header;
-		return false;
-	}
-	return true;
-}
-
-uint32_t closerom(bool save, const unsigned char * romdata)
-{
-	uint32_t romCrc = 0;
-	if (thisfile && save && romlen)
-	{
-		fseek(thisfile, header*512, SEEK_SET);
-		fwrite(const_cast<unsigned char*>(romdata), 1, (size_t)romlen, thisfile);
-
-		// do a quick re-read of the header, and include that in the crc32 calculation if necessary
-		{
-			uint8_t* filedata = (uint8_t*)malloc(sizeof(uint8_t) * (romlen + header * 512));
-			if (header)
-			{
-				fseek(thisfile, 0, SEEK_SET);
-				fread(filedata, sizeof(uint8_t), 512, thisfile);
-			}
-			memcpy(filedata + (header * 512), romdata, sizeof(uint8_t) * (size_t)romlen);
-			romCrc = crc32(filedata, (unsigned int)(romlen + header * 512));
-			free(filedata);
-		}
-	}
-	if (thisfile) fclose(thisfile);
-	if (romdata) free(const_cast<unsigned char*>(romdata));
-	thisfile= nullptr;
-	romdata= nullptr;
-	romlen=0;
-	return romCrc;
-}
-
-
-
+/*
 void writeromdata(int pcoffset, const void * indata, int numbytes, 
                 const unsigned char * romdata, mapper_t rommapper)
 {
@@ -387,129 +659,6 @@ void writeromdata_bytes(int pcoffset, unsigned char indata, int numbytes,
 
 
 
-int snestopc(int addr, mapper_t rommapper)
-{
-    if (addr < 0 || addr > 0xFFFFFF)
-        return -1; //not 24bit
-    
-    switch (rommapper) {
-    case mapper_t::lorom:
-        // randomdude999: The low pages ($0000-$7FFF) of banks 70-7D are used
-        // for SRAM, the high pages are available for ROM data though
-        if ((addr & 0xFE0000) == 0x7E0000 || //wram
-            (addr & 0x408000) == 0x000000 || //hardware regs, ram mirrors, other strange junk
-            (addr & 0x708000) == 0x700000) //sram (low parts of banks 70-7D)
-            return -1;
-        addr = ((addr & 0x7F0000) >> 1 | (addr & 0x7FFF));
-        return addr;
-    case mapper_t::hirom:
-        if ((addr & 0xFE0000) == 0x7E0000 || //wram
-            (addr & 0x408000) == 0x000000) //hardware regs, ram mirrors, other strange junk
-            return -1;
-        return addr & 0x3FFFFF;
-    case mapper_t::exlorom:
-        if ((addr & 0xF00000) == 0x700000 || //wram, sram
-            (addr & 0x408000) == 0x000000) //area that shouldn't be used in lorom
-            return -1;
-        if (addr & 0x800000)
-            addr = ((addr & 0x7F0000) >> 1 | (addr & 0x7FFF));
-        else
-            addr = ((addr & 0x7F0000) >> 1 | (addr & 0x7FFF)) + 0x400000;
-        return addr;
-    case mapper_t::exhirom:
-        if ((addr & 0xFE0000) == 0x7E0000 || //wram
-            (addr & 0x408000) == 0x000000) //hardware regs, ram mirrors, other strange junk
-            return -1;
-        if ((addr & 0xC00000) != 0xC00000)
-            return (addr & 0x3FFFFF) | 0x400000;
-        return addr & 0x3FFFFF;
-    case mapper_t::sfxrom:
-        // Asar emulates GSU1, because apparently emulators don't support the extra ROM data from GSU2
-        if ((addr & 0x600000) == 0x600000 || //wram, sram, open bus
-            (addr & 0x408000) == 0x000000 || //hardware regs, ram mirrors, rom mirrors, other strange junk
-            (addr & 0x800000) == 0x800000) //fastrom isn't valid either in superfx
-            return -1;
-        if (addr & 0x400000)
-            return addr & 0x3FFFFF;
-        else
-            return (addr & 0x7F0000) >> 1 | (addr & 0x7FFF);
-    case mapper_t::sa1rom:
-        if ((addr & 0x408000) == 0x008000)
-            return sa1banks[(addr & 0xE00000) >> 21] | ((addr & 0x1F0000) >> 1) | (addr & 0x007FFF);
-        if ((addr & 0xC00000) == 0xC00000)
-            return sa1banks[((addr & 0x100000) >> 20) | ((addr & 0x200000) >> 19)] | (addr & 0x0FFFFF);
-        return -1;
-    case mapper_t::bigsa1rom:
-        if ((addr & 0xC00000) == 0xC00000) //hirom
-            return (addr & 0x3FFFFF) | 0x400000;
-        if ((addr & 0xC00000) == 0x000000 || (addr & 0xC00000) == 0x800000) //lorom
-            if ((addr & 0x008000) == 0x000000)
-                return -1;
-            return (addr & 0x800000) >> 2 | (addr & 0x3F0000) >> 1 | (addr & 0x7FFF);
-        return -1;
-    case mapper_t::norom:
-        return addr;
-    }
-    return -1;
-}
-
-int pctosnes(int addr, mapper_t rommapper)
-{
-    if (addr < 0)
-        return -1;
-
-    switch (rommapper) {
-    case mapper_t::lorom:
-        if (addr >= 0x400000)
-            return -1;
-        addr = ((addr << 1) & 0x7F0000) | (addr & 0x7FFF) | 0x8000;
-        return addr | 0x800000;
-    case mapper_t::hirom:
-        if (addr >= 0x400000)
-            return -1;
-        return addr | 0xC00000;
-    case mapper_t::exlorom:
-        if (addr >= 0x800000)
-            return -1;
-        if (addr & 0x400000) {
-            addr -= 0x400000;
-            addr = ((addr << 1) & 0x7F0000) | (addr & 0x7FFF) | 0x8000;
-            return addr;
-        } else {
-            addr = ((addr << 1) & 0x7F0000) | (addr & 0x7FFF) | 0x8000;
-            return addr | 0x800000;
-        }
-    case mapper_t::exhirom:
-        if (addr >= 0x800000)
-            return -1;
-        if (addr & 0x400000)
-            return addr;
-        return addr | 0xC00000;
-    case mapper_t::sa1rom:
-        for (int i = 0; i < 8; i++) {
-            if (sa1banks[i] == (addr & 0x700000))
-                return 0x008000 | (i << 21) | ((addr & 0x0F8000) << 1) | (addr & 0x7FFF);
-        }
-        return -1;
-    case mapper_t::bigsa1rom:
-        if (addr >= 0x800000)
-            return -1;
-        if ((addr & 0x400000) == 0x400000)
-            return addr | 0xC00000;
-        if ((addr & 0x600000) == 0x000000)
-            return ((addr << 1) & 0x3F0000) | 0x8000 | (addr & 0x7FFF);
-        if ((addr & 0x600000) == 0x200000)
-            return 0x800000 | ((addr << 1) & 0x3F0000) | 0x8000 | (addr & 0x7FFF);
-        return -1;
-    case mapper_t::sfxrom:
-        if (addr >= 0x200000)
-            return -1;
-        return ((addr << 1) & 0x7F0000) | (addr & 0x7FFF) | 0x8000;
-    case mapper_t::norom:
-        return addr;
-    }
-    return -1;
-}
 
 
 
@@ -680,4 +829,4 @@ void fixchecksum(const unsigned char *romdata, mapper_t rommapper)
 	writeromdata_byte(snestopc(0x00FFDC, rommapper), (unsigned char)((checksum&255)^255), romdata);
 	writeromdata_byte(snestopc(0x00FFDD, rommapper), (unsigned char)(((checksum>>8)&255)^255), romdata);
 }
-
+*/

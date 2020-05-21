@@ -8,11 +8,16 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 SOURCES += main_window.cpp \
            sprite.cpp \
            tool.cpp \
+           ext/libsmw.cpp \
+           ext/crc32.cpp \
            main.cpp
 
 HEADERS += main_window.h \
            sprite.h \
-           tool.h
+           tool.h \
+           ext/libsmw.h \
+           ext/crc32.h \
+           ext/asar_errors_small.h
 
 CONFIG += debug_and_release
 

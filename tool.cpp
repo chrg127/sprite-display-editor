@@ -9,6 +9,8 @@
 #include <QtGlobal>
 #include <iostream>
 #include <iomanip>
+#include "ext/libsmw.h"
+#include "ext/asar_errors_small.h"
 
 #define PRINTHEX(v) \
     do { \
@@ -111,7 +113,7 @@ cleanup:
  * ... 30 D2 12 42 ...
  *     ^        ^
  *     address  byte check */
-void check_sprite_extensions(const QString &romname)
+void check_sprite_extensions(LibSMW::SnesRom &rom)
 {
 
 }
