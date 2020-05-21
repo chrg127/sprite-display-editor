@@ -15,8 +15,6 @@ class MainWindow : public QMainWindow {
     Q_OBJECT
 
 private:
-    Tool *tool;
-
     QWidget *center_widget;
     QMenu *filemenu;
     QMenu *aboutmenu;

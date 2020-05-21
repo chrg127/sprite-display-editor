@@ -1,0 +1,56 @@
+00	20	A propeller block. Mario will jump higher while carrying this block.
+00	30	This version of the propeller block will make Mario jump even higher.
+01	20	A buzzy beetle that walks on the roof and will go down if Mario is under it.
+02	20	A hammer bro who throws hammers.
+03	20	A grinder that jumps on the ground.
+04	20	A normal thwomp.
+04	30	When triggered, this thwomp won't stop moving up and down. It starts from the TOP.
+05	20	Upside down thwomp.
+05	30	When triggered, this thwomp won't stop moving up and down. It starts from the BOTTOM.
+06	20	Horizontal thwomp, goes to the LEFT.
+06	30	When triggered, this thwomp won't stop moving up and down. It starts from the RIGHT.
+07	20	Horizontal thwomp, goes to the RIGHT.
+07	30	When triggered, this thwomp won't stop moving up and down. It starts from the LEFT.
+08	20	This thwomp will change it's direction every time it hits the ground. It goes CLOCKWISE.
+08	30	This thwomp will change it's direction every time it hits the ground. It goes COUNTERCLOCKWISE.
+09	20	This thwimp will move LEFT and RIGHT and will stop at walls.
+09	30	This thwimp will move UP and DOWN and will stop at walls.
+0A	20	This is a special ball'n'chain that moves like a pendulum.
+0B	20	A bumper that bumps Mario to various places.
+0C  20  A piranha plant that comes from a horizontal pipe.
+0C  30  A piranha plant that comes from a horizontal pipe.
+0D  20  A venus fire trap coming out of a pipe. Spits one fireball.
+0D  30  A venus fire trap coming out of a pipe downwards. Spits one fireball.
+0E  20  A venus fire trap coming out of a pipe. Spits two fireballs.
+0E  30  A venus fire trap coming out of a pipe downwards. Spits two fireballs.
+0F  20  Generates leaves. Use ExGFX.
+10  20  A kabomb that will get angry and explode if touched by some specific sprites.
+11  20  A rock throwing mole.
+11  30  A bomb throwing mole.
+00 22 0,-16,402 0,0,412
+00 32 0,-16,402 0,0,413
+01 22 0,0,F0
+03 22 0,0,AB 16,0,AC 0,16,BB 16,16,BC
+04 22 0,0,34 0,16,44 16,0,35 16,16,45
+04 32 0,0,34 0,16,44 16,0,35 16,16,45
+05 22 0,0,34 0,16,44 16,0,35 16,16,45
+05 32 0,0,34 0,16,44 16,0,35 16,16,45
+06 22 0,0,34 0,16,44 16,0,35 16,16,45
+06 32 0,0,34 0,16,44 16,0,35 16,16,45
+07 22 0,0,34 0,16,44 16,0,35 16,16,45
+07 32 0,0,34 0,16,44 16,0,35 16,16,45
+08 22 0,0,34 0,16,44 16,0,35 16,16,45
+08 32 0,0,34 0,16,44 16,0,35 16,16,45
+09 22 0,0,2A
+09 32 0,0,2A
+0A 22 0,16,175 2,32,175 0,48,1C4 16,48,1C5 0,64,1D4 16,64,1D5
+0B 22 -16,-16,400 -16,0,410 0,-16,401 0,0,411
+0C 22 -16,8,421 -32,8,420
+0C 32 16,8,422 32,8,423
+0D 22 8,-32,403 8,-16,404
+0D 32 8,32,403 8,16,406
+0E 22 8,-32,403 8,-16,404 -8,-32,405
+0E 32 8,32,403 8,16,406 -8,32,405
+10 22 0,0,414
+11 22 0,0,416 -8,0,415
+11 32 0,0,416 -8,0,420

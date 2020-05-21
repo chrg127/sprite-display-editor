@@ -26,6 +26,7 @@ class SpriteTile {
         }
 };
 
+
 class Sprite {
     public:
         QString name;
@@ -33,6 +34,7 @@ class Sprite {
         unsigned char command;
         unsigned char extrabytes;
         QVector<SpriteTile> tiles;
+        QVector<unsigned char> extensions;
         
         Sprite()
         { 
@@ -50,7 +52,9 @@ class Sprite {
             extrabytes = eb;
         }
 
-        void parse_add_tile(const QStringList &s);
+        int parse_add_tile(const QStringList &s);
+
+        void operator=(const Sprite &s);
 
 };
 

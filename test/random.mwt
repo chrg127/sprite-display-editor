@@ -1,0 +1,32 @@
+00	Propeller Block, small jump.
+00	Propeller block, big jump.
+01	Ceiling Buzzy.
+02	Hammer bro.
+03	Jumping grinder.
+04	Thwomp.
+04	Mad thwomp, goes DOWN.
+05	Thwomp, goes UP.
+05	Mad thwomp, goes UP.
+06	Thwomp, goes LEFT.
+06	Mad thwomp, goes LEFT. 
+07	Thwomp, goes RIGHT.
+07	Mad thwomp, goes RIGHT.
+08	Circling Thwomp, clockwise.
+08	Circling Thwomp, counterclockwise.
+09	Mosaic Thwimp, horizontal.
+09	Mosaic thwimp, vertical.
+0A	Pendulum ball'n'chain.
+0B	Bumper.
+0B	Bumper, line guided, slow.
+0B	Bumper, line guided, medium.
+0B	Bumper, line guided, fast.
+0C	Horizontal Piranha Plant Left
+0C	Horizontal Piranha Plant Right.
+0D	Venus Fire Trap (1 Ball).
+0D  Venus Fire Trap, downwards (1 Ball).
+0E	Venus Fire Trap (2 Balls).
+0E  Venus Fire Trap, downwards (2 Balls).
+0F	Fish Cluster Generator.
+10	Kabomb.
+11  Whacky Mole (Rock).
+11  Whacky Mole (Bomb).
