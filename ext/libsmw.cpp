@@ -10,15 +10,15 @@
 #include <cstdio>
 
 #include "autoarray.h"
-#include "errors.h"
-#include "asar.h"
+//#include "errors.h"
+//#include "asar.h"
 #include "crc32.h"
 #include <cstdint>
 
 static int sa1banks[8]={0<<20, 1<<20, -1, -1, 2<<20, 3<<20, -1, -1};
 
 
-mapper_t mapper=lorom;
+//mapper_t mapper=lorom;
 const unsigned char * romdata= nullptr; // NOTE: Changed into const to prevent direct write access - use writeromdata() functions below
 int romlen;
 static bool header;
@@ -27,6 +27,10 @@ static FILE * thisfile;
 asar_error_id openromerror;
 
 autoarray<writtenblockdata> writtenblocks;
+
+
+/* *********** Static functions first ************* */
+
 
 // RPG Hacker: Uses binary search to find the insert position of our ROM write
 static int findromwritepos(int snesoffset, int searchstartpos, int searchendpos)
@@ -42,8 +46,7 @@ static int findromwritepos(int snesoffset, int searchstartpos, int searchendpos)
 	return findromwritepos(snesoffset, centerpos + 1, searchendpos);
 }
 
-
-static void addromwriteforbank(int snesoffset, int numbytes)
+static void addromwriteforbank(int snesoffset, int numbytes, mapper_t rommapper)
 {
 	int currentbank = (snesoffset & 0xFF0000);
 
@@ -82,16 +85,15 @@ static void addromwriteforbank(int snesoffset, int numbytes)
 	// Insert ROM write
 	writtenblockdata blockdata;
 	blockdata.snesoffset = snesoffset;
-	blockdata.pcoffset = snestopc(snesoffset);
+	blockdata.pcoffset = snestopc(snesoffset, rommapper);
 	blockdata.numbytes = numbytes;
 
 	writtenblocks.insert(insertpos, blockdata);
 }
 
-
-static void addromwrite(int pcoffset, int numbytes)
+static void addromwrite(int pcoffset, int numbytes, mapper_t rommapper)
 {
-	int snesaddr = pctosnes(pcoffset);
+	int snesaddr = pctosnes(pcoffset, rommapper);
 	int bytesleft = numbytes;
 
 	// RPG Hacker: Some kind of witchcraft which I actually hope works as intended
@@ -101,63 +103,17 @@ static void addromwrite(int pcoffset, int numbytes)
 	{
 		int bytesinbank = ((snesaddr + 0x10000) & 0xFF0000) - snesaddr;
 
-		addromwriteforbank(snesaddr, bytesinbank);
+		addromwriteforbank(snesaddr, bytesinbank, rommapper);
 
 		pcoffset += bytesinbank;
-		snesaddr = pctosnes(pcoffset);
+		snesaddr = pctosnes(pcoffset, rommapper);
 		bytesleft -= bytesinbank;
 	}
 
-	addromwriteforbank(snesaddr, bytesleft);
+	addromwriteforbank(snesaddr, bytesleft, rommapper);
 }
 
-void writeromdata(int pcoffset, const void * indata, int numbytes, const unsigned char * romdata)
-{
-	memcpy(const_cast<unsigned char*>(romdata) + pcoffset, indata, (size_t)numbytes);
-	addromwrite(pcoffset, numbytes);
-}
-
-void writeromdata_byte(int pcoffset, unsigned char indata, const unsigned char * romdata)
-{
-	memcpy(const_cast<unsigned char*>(romdata) + pcoffset, &indata, 1);
-	addromwrite(pcoffset, 1);
-}
-
-void writeromdata_bytes(int pcoffset, unsigned char indata, int numbytes, const unsigned char * romdata)
-{
-	memset(const_cast<unsigned char*>(romdata) + pcoffset, indata, (size_t)numbytes);
-	addromwrite(pcoffset, numbytes);
-}
-
-int ratsstart(int snesaddr, const unsigned char * romdata)
-{
-	int pcaddr=snestopc(snesaddr);
-	if (pcaddr<0x7FFF8) return -1;
-	const unsigned char * start=romdata+pcaddr-0x10000;
-	for (int i=0x10000;i>=0;i--)
-	{
-		if (!strncmp((const char*)start+i, "STAR", 4) &&
-				(start[i+4]^start[i+6])==0xFF && (start[i+5]^start[i+7])==0xFF)
-		{
-			if ((start[i+4]|(start[i+5]<<8))>0x10000-i-8-1) return pctosnes((int)(start-romdata+i));
-			return -1;
-		}
-	}
-	return -1;
-}
-
-void resizerats(int snesaddr, int newlen)
-{
-	int pos=snestopc(ratsstart(snesaddr));
-	if (pos<0) return;
-	if (newlen!=1) newlen--;
-	writeromdata_byte(pos+4, (unsigned char)(newlen&0xFF));
-	writeromdata_byte(pos+5, (unsigned char)((newlen>>8)&0xFF));
-	writeromdata_byte(pos+6, (unsigned char)((newlen&0xFF)^0xFF));
-	writeromdata_byte(pos+7, (unsigned char)(((newlen>>8)&0xFF)^0xFF));
-}
-
-static void handleprot(int loc, char * name, int len, const unsigned char * contents)
+static void handleprot(int loc, char * name, int len, const unsigned char * contents, const unsigned char *romdata)
 {
 	(void)loc;		// RPG Hacker: Silence "unused argument" warning.
 
@@ -166,22 +122,15 @@ static void handleprot(int loc, char * name, int len, const unsigned char * cont
 		strncpy(name, "NULL", 4);//to block recursion, in case someone is an idiot
 		if (len%3) return;
 		len/=3;
-		for (int i=0;i<len;i++) removerats((contents[(i*3)+0]    )|(contents[(i*3)+1]<<8 )|(contents[(i*3)+2]<<16), 0x00);
-	}
+		for (int i=0;i<len;i++) {
+            removerats( 
+                (contents[(i*3)+0]) |  (contents[(i*3)+1]<<8 ) | (contents[(i*3)+2]<<16)
+                , 0x00, romdata);
+        }
+    }
 }
 
-void removerats(int snesaddr, unsigned char clean_byte, const unsigned char * romdata)
-{
-	int addr=ratsstart(snesaddr);
-	if (addr<0) return;
-	// randomdude999: don't forget bank borders
-	WalkMetadata(pctosnes(snestopc(addr)+8), handleprot);
-	addr=snestopc(addr);
-	for (int i=(romdata[addr+4]|(romdata[addr+5]<<8))+8;i>=0;i--)
-        writeromdata_byte(addr+i, clean_byte);
-}
-
-static inline int trypcfreespace(int start, int end, int size, int banksize, int minalign, unsigned char freespacebyte, const unsigned char * romdata)
+static int trypcfreespace(int start, int end, int size, int banksize, int minalign, unsigned char freespacebyte, const unsigned char * romdata)
 {
 	while (start+size<=end)
 	{
@@ -222,32 +171,43 @@ static inline int trypcfreespace(int start, int end, int size, int banksize, int
 		if (bad) continue;
 		size-=8;
 		if (size) size--;//rats tags eat one byte more than specified for some reason
-		writeromdata_byte(start+0, 'S');
-		writeromdata_byte(start+1, 'T');
-		writeromdata_byte(start+2, 'A');
-		writeromdata_byte(start+3, 'R');
-		writeromdata_byte(start+4, (unsigned char)(size&0xFF));
-		writeromdata_byte(start+5, (unsigned char)((size>>8)&0xFF));
-		writeromdata_byte(start+6, (unsigned char)((size&0xFF)^0xFF));
-		writeromdata_byte(start+7, (unsigned char)(((size>>8)&0xFF)^0xFF));
+		writeromdata_byte(start+0, 'S', romdata);
+		writeromdata_byte(start+1, 'T', romdata);
+		writeromdata_byte(start+2, 'A', romdata);
+		writeromdata_byte(start+3, 'R', romdata);
+		writeromdata_byte(start+4, (unsigned char)(size&0xFF), romdata);
+		writeromdata_byte(start+5, (unsigned char)((size>>8)&0xFF), romdata);
+		writeromdata_byte(start+6, (unsigned char)((size&0xFF)^0xFF), romdata);
+		writeromdata_byte(start+7, (unsigned char)(((size>>8)&0xFF)^0xFF), romdata);
 		return start+8;
 	}
 	return -1;
 }
 
-static int getpcfreespace_lorom(int size, bool isforcode, bool autoexpand, bool respectbankborders, bool align, unsigned char freespacebyte)
+static unsigned int getchecksum(const unsigned char * romdata)
+{
+	unsigned int checksum=0;
+	for (int i=0;i<romlen;i++) checksum+=romdata[i];//this one is correct for most cases, and I don't care about the rest.
+	return checksum&0xFFFF;
+}
+
+static int getpcfreespace_lorom(int size, bool isforcode, bool autoexpand, 
+                            bool respectbankborders, bool align, unsigned char freespacebyte, 
+                            const unsigned char *romdata, mapper_t rommapper)
 {
     if (size>0x8008 && respectbankborders)
         return -1;
+
 rebootlorom:
     if (romlen>0x200000 && !isforcode) {
         int pos=trypcfreespace(0x200000-8, (romlen<0x400000)?romlen:0x400000, size,
-                respectbankborders?0x7FFF:0xFFFFFF, align?0x7FFF:(respectbankborders || size<32768)?0:0x7FFF, freespacebyte);
+                respectbankborders?0x7FFF:0xFFFFFF, align?0x7FFF:(respectbankborders || size<32768)?0:0x7FFF, freespacebyte,
+                romdata);
         if (pos>=0) 
             return pos;
     }
     int pos=trypcfreespace(0x80000, (romlen<0x200000)?romlen:0x200000, size,
-            respectbankborders?0x7FFF:0xFFFFFF, align?0x7FFF:(respectbankborders || size<32768)?0:0x7FFF, freespacebyte);
+            respectbankborders?0x7FFF:0xFFFFFF, align?0x7FFF:(respectbankborders || size<32768)?0:0x7FFF, freespacebyte, romdata);
     if (pos>=0) 
         return pos;
     if (autoexpand) {
@@ -255,23 +215,26 @@ rebootlorom:
             ;
         else if (romlen==0x080000) {
             romlen=0x100000;
-            writeromdata_byte(snestopc(0x00FFD7), 0x0A);
+            writeromdata_byte(snestopc(0x00FFD7, rommapper), 0x0A, romdata);
         } else if (romlen==0x100000) {
             romlen=0x200000;
-            writeromdata_byte(snestopc(0x00FFD7), 0x0B);
+            writeromdata_byte(snestopc(0x00FFD7, rommapper), 0x0B, romdata);
         } else if (isforcode) 
             return -1; //no point creating freespace that can't be used
         else if (romlen==0x200000 || romlen==0x300000) {
             romlen=0x400000;
-            writeromdata_byte(snestopc(0x00FFD7), 0x0C);
+            writeromdata_byte(snestopc(0x00FFD7, rommapper), 0x0C, romdata);
         } else
             return -1;
         autoexpand=false;
         goto rebootlorom;
     }
+    return -1;
 }
 
-static int getpcfreespace_sa1rom(int size, bool isforcode, bool autoexpand, bool respectbankborders, bool align, unsigned char freespacebyte)
+static int getpcfreespace_sa1rom(int size, bool isforcode, bool autoexpand, 
+                            bool respectbankborders, bool align, unsigned char freespacebyte, 
+                            const unsigned char *romdata)
 {
 rebootsa1rom:
     int nextbank=-1;
@@ -285,7 +248,7 @@ rebootsa1rom:
                 nextbank=sa1banks[i];
             continue;
         }
-        int pos=trypcfreespace(sa1banks[i]?sa1banks[i]:0x80000, sa1banks[i]+0x100000, size, 0x7FFF, align?0x7FFF:0, freespacebyte);
+        int pos=trypcfreespace(sa1banks[i]?sa1banks[i]:0x80000, sa1banks[i]+0x100000, size, 0x7FFF, align?0x7FFF:0, freespacebyte, romdata);
         if (pos>=0)
             return pos;
     }
@@ -293,133 +256,75 @@ rebootsa1rom:
     {
         unsigned char x7FD7[]={0, 0x0A, 0x0B, 0x0C, 0x0C, 0x0D, 0x0D, 0x0D, 0x0D};
         romlen=nextbank+0x100000;
-        writeromdata_byte(0x7FD7, x7FD7[romlen>>20]);
+        writeromdata_byte(0x7FD7, x7FD7[romlen>>20], romdata);
         autoexpand=false;
         goto rebootsa1rom;
     }
-}
-//This function finds a block of freespace. -1 means "no freespace found", anything else is a PC address.
-//isforcode=false tells it to favor banks 40+, true tells it to avoid them entirely.
-//It automatically adds a RATS tag.
-int getpcfreespace(int size, bool isforcode, bool autoexpand, bool respectbankborders, bool align, unsigned char freespacebyte, mapper_t rommapper)
-{
-	if (!size)
-        return 0x1234;//in case someone protects zero bytes for some dumb reason.
-		//You can write zero bytes to anywhere, so I'll just return something that removerats will ignore.
-	if (size>0x10000)
-        return -1;
-	size+=8;
-
-    switch(rommaper) {
-    case mapper_t::lorom:
-        return getpcfreespace_lorom(size, ifforcode, autoexpand, respectbankborders, align, freespacebyte);
-    case mapper_t::hirom:
-		if (isforcode)
-            return -1;
-		return trypcfreespace(0, romlen, size, 0xFFFF, align?0xFFFF:0, freespacebyte);
-    case mapper_t::exlorom:
-		if (isforcode)
-            return -1;
-		return trypcfreespace(0, romlen, size, 0x7FFF, align ? 0x7FFF : 0, freespacebyte);
-    case mapper_t::exlorom:
-		if (isforcode)
-            return -1;
-		return trypcfreespace(0, romlen, size, 0xFFFF, align?0xFFFF:0, freespacebyte);
-    case mapper_t::sfxrom:
-		if (!isforcode)
-            return -1;
-		// try not to overwrite smw stuff
-		return trypcfreespace(0x80000, romlen, size, 0x7FFF, align?0x7FFF:0, freespacebyte);
-    case mapper_t::sa1rom:
-        return getpcfreespace_sa1rom(size, ifforcode, autoexpand, respectbankborders, align, freespacebyte);
-    case mapper_t::bigsa1rom:
-		if(!isforcode && romlen > 0x400000)
-		{
-			int pos=trypcfreespace(0x400000, romlen, size, 0xFFFF, align?0xFFFF:0, freespacebyte);
-			if (pos>=0) 
-                return pos;
-		}
-		int pos=trypcfreespace(0x080000, romlen, size, 0x7FFF, align?0x7FFF:0, freespacebyte);
-		if (pos>=0) 
-            return pos;
-    }
-	return -1;
+    return -1;
 }
 
-void WalkRatsTags(void(*func)(int loc, int len, const unsigned char * romdata)
+
+
+
+
+
+
+
+
+
+
+/* ********** Public functions *********** */
+
+//rom->file
+//rom->lenght
+
+void init_rom(SnesRom *rom)
 {
-	int pos=snestopc(0x108000);
-	while (pos<romlen)
-	{
-		if (!strncmp((const char*)romdata+pos, "STAR", 4) &&
-					(romdata[pos+4]^romdata[pos+6])==0xFF && (romdata[pos+5]^romdata[pos+7])==0xFF)
-		{
-			func(pctosnes(pos+8), (romdata[pos+4]|(romdata[pos+5]<<8))+1);
-			pos+=(romdata[pos+4]|(romdata[pos+5]<<8))+1+8;
-		}
-		else pos++;
-	}
+    rom->file = NULL;
+    rom->filename = NULL;
+    rom->data = NULL;
+    rom->lenght = 0;
+    rom->mapper = mapper_t::lorom;
+    rom->header = false;
 }
 
-void WalkMetadata(int loc, void(*func)(int loc, char * name, int len, const unsigned char * contents), const unsigned char * romdata)
+bool openrom(SnesRom *rom, const char * filename, bool confirm)
 {
-	int pcoff=snestopc(loc);
-	if (strncmp((const char*)romdata+pcoff-8, "STAR", 4)) return;
-	const unsigned char * metadata=romdata+pcoff;
-	while (isupper(metadata[0]) && isupper(metadata[1]) && isupper(metadata[2]) && isupper(metadata[3]))
-	{
-		if (!strncmp((const char*)metadata, "STOP", 4))
-		{
-			metadata=romdata+pcoff;
-			while (isupper(metadata[0]) && isupper(metadata[1]) && isupper(metadata[2]) && isupper(metadata[3]))
-			{
-				if (!strncmp((const char*)metadata, "STOP", 4))
-				{
-					break;
-				}
-				func(pctosnes((int)(metadata-romdata)), (char*)const_cast<unsigned char*>(metadata), metadata[4], metadata+5);
-				metadata+=5+metadata[4];
-			}
-			break;
-		}
-		metadata+=5+metadata[4];
-	}
-}
+    int truelen;
 
-int getsnesfreespace(int size, bool isforcode, bool autoexpand, bool respectbankborders, bool align, unsigned char freespacebyte)
-{
-	return pctosnes(getpcfreespace(size, isforcode, autoexpand, respectbankborders, align, freespacebyte));
-}
-
-bool openrom(const char * filename, bool confirm)
-{
 	closerom();
-	thisfile=fopen(filename, "r+b");
-	if (!thisfile)
-	{
-		openromerror = error_id_open_rom_failed;
+	rom->file = fopen(filename, "r+b");
+	if (!(rom->file)) {
+		//openromerror = error_id_open_rom_failed;
 		return false;
 	}
-	fseek(thisfile, 0, SEEK_END);
-	header=false;
-	if (strlen(filename)>4)
-	{
-		const char * fnameend=strchr(filename, '\0')-4;
-		header=(!stricmp(fnameend, ".smc"));
+    //rom->filename = filename;
+
+	fseek(rom->file, 0, SEEK_END);
+	rom->header = false;
+	if (strlen(filename) > 4) {
+		const char * fnameend = strchr(filename, '\0')-4;
+		header = (!stricmp(fnameend, ".smc"));
 	}
-	romlen=ftell(thisfile)-(header*512);
-	if (romlen<0) romlen=0;
-	fseek(thisfile, header*512, SEEK_SET);
-	romdata=(unsigned char*)malloc(sizeof(unsigned char)*16*1024*1024);
-	int truelen=(int)fread(const_cast<unsigned char*>(romdata), 1u, (size_t)romlen, thisfile);
-	if (truelen!=romlen)
-	{
+
+	rom->lenght = ftell(rom->file) - (header*512);
+	if (rom->lenght < 0)
+        rom->lenght = 0;
+
+	fseek(rom->file, header*512, SEEK_SET);
+	romdata = (unsigned char*) malloc(sizeof(unsigned char)*16*1024*1024);
+
+	truelen = (int) fread(const_cast<unsigned char*>(romdata), 1u, (size_t) rom->lenght, rom->file);
+	if (truelen!=rom->lenght) {
 		openromerror = error_id_open_rom_failed;
 		free(const_cast<unsigned char*>(romdata));
 		return false;
 	}
-	memset(const_cast<unsigned char*>(romdata)+romlen, 0x00, (size_t)(16*1024*1024-romlen));
-	if (confirm && snestopc(0x00FFC0)+21<(int)romlen && strncmp((const char*)romdata+snestopc(0x00FFC0), "SUPER MARIOWORLD     ", 21))
+
+	memset(const_cast<unsigned char*>(romdata)+rom->lenght, 0x00, (size_t)(16*1024*1024-rom->lenght));
+	if (confirm && 
+        snestopc(0x00FFC0, rom->mapper) + 21<(int)rom->lenght && 
+        strncmp((const char*)romdata + snestopc(0x00FFC0, rom->mapper), "SUPER MARIOWORLD     ", 21))
 	{
 		closerom(false);
 		openromerror = header ? error_id_open_rom_not_smw_extension : error_id_open_rom_not_smw_header;
@@ -457,30 +362,30 @@ uint32_t closerom(bool save, const unsigned char * romdata)
 	return romCrc;
 }
 
-static unsigned int getchecksum(const unsigned char * romdata)
+
+
+void writeromdata(int pcoffset, const void * indata, int numbytes, 
+                const unsigned char * romdata, mapper_t rommapper)
 {
-	unsigned int checksum=0;
-	for (int i=0;i<romlen;i++) checksum+=romdata[i];//this one is correct for most cases, and I don't care about the rest.
-	return checksum&0xFFFF;
+	memcpy(const_cast<unsigned char*>(romdata) + pcoffset, indata, (size_t)numbytes);
+	addromwrite(pcoffset, numbytes, rommapper);
 }
 
-bool goodchecksum(const unsigned char *romdata)
+void writeromdata_byte(int pcoffset, unsigned char indata, 
+                    const unsigned char * romdata, mapper_t rommapper)
 {
-	int checksum=(int)getchecksum();
-	return ((romdata[snestopc(0x00FFDE)]^romdata[snestopc(0x00FFDC)])==0xFF) && ((romdata[snestopc(0x00FFDF)]^romdata[snestopc(0x00FFDD)])==0xFF) &&
-					((romdata[snestopc(0x00FFDE)]&0xFF)==(checksum&0xFF)) && ((romdata[snestopc(0x00FFDF)]&0xFF)==((checksum>>8)&0xFF));
+	memcpy(const_cast<unsigned char*>(romdata) + pcoffset, &indata, 1);
+	addromwrite(pcoffset, 1, rommapper);
 }
 
-void fixchecksum()
+void writeromdata_bytes(int pcoffset, unsigned char indata, int numbytes,
+                    const unsigned char * romdata, mapper_t rommapper)
 {
-	// randomdude999: clear out checksum bytes before recalculating checksum, this should make it correct on roms that don't have a checksum yet
-	writeromdata(snestopc(0x00FFDC), "\xFF\xFF\0\0", 4);
-	int checksum=(int)getchecksum();
-	writeromdata_byte(snestopc(0x00FFDE), (unsigned char)(checksum&255));
-	writeromdata_byte(snestopc(0x00FFDF), (unsigned char)((checksum>>8)&255));
-	writeromdata_byte(snestopc(0x00FFDC), (unsigned char)((checksum&255)^255));
-	writeromdata_byte(snestopc(0x00FFDD), (unsigned char)(((checksum>>8)&255)^255));
+	memset(const_cast<unsigned char*>(romdata) + pcoffset, indata, (size_t)numbytes);
+	addromwrite(pcoffset, numbytes, rommapper);
 }
+
+
 
 int snestopc(int addr, mapper_t rommapper)
 {
@@ -605,3 +510,174 @@ int pctosnes(int addr, mapper_t rommapper)
     }
     return -1;
 }
+
+
+
+
+//This function finds a block of freespace. -1 means "no freespace found", anything else is a PC address.
+//isforcode=false tells it to favor banks 40+, true tells it to avoid them entirely.
+//It automatically adds a RATS tag.
+int getpcfreespace(mapper_t rommapper, const unsigned char *romdata,
+                int size, bool isforcode, bool autoexpand, 
+                bool respectbankborders, bool align, unsigned char freespacebyte)
+{
+	if (!size)
+        return 0x1234;//in case someone protects zero bytes for some dumb reason.
+		//You can write zero bytes to anywhere, so I'll just return something that removerats will ignore.
+	if (size>0x10000)
+        return -1;
+	size+=8;
+
+    switch(rommapper) {
+    case mapper_t::lorom:
+        return getpcfreespace_lorom(size, isforcode, autoexpand, respectbankborders, align, freespacebyte, romdata, rommapper);
+    case mapper_t::hirom:
+		if (isforcode)
+            return -1;
+		return trypcfreespace(0, romlen, size, 0xFFFF, align?0xFFFF:0, freespacebyte, romdata);
+    case mapper_t::exlorom:
+		if (isforcode)
+            return -1;
+		return trypcfreespace(0, romlen, size, 0x7FFF, align ? 0x7FFF : 0, freespacebyte, romdata);
+    case mapper_t::exhirom:
+		if (isforcode)
+            return -1;
+		return trypcfreespace(0, romlen, size, 0xFFFF, align?0xFFFF:0, freespacebyte, romdata);
+    case mapper_t::sfxrom:
+		if (!isforcode)
+            return -1;
+		// try not to overwrite smw stuff
+		return trypcfreespace(0x80000, romlen, size, 0x7FFF, align?0x7FFF:0, freespacebyte, romdata);
+    case mapper_t::sa1rom:
+        return getpcfreespace_sa1rom(size, isforcode, autoexpand, respectbankborders, align, freespacebyte, romdata);
+    case mapper_t::bigsa1rom:
+		if(!isforcode && romlen > 0x400000)
+		{
+			int pos=trypcfreespace(0x400000, romlen, size, 0xFFFF, align?0xFFFF:0, freespacebyte, romdata);
+			if (pos>=0) 
+                return pos;
+		}
+		int pos=trypcfreespace(0x080000, romlen, size, 0x7FFF, align?0x7FFF:0, freespacebyte, romdata);
+		if (pos>=0) 
+            return pos;
+    }
+	return -1;
+}
+
+int getsnesfreespace(mapper_t rommapper, const unsigned char *romdata,
+                    int size, bool isforcode, bool autoexpand, bool respectbankborders, bool align, unsigned char freespacebyte)
+{
+	return pctosnes(getpcfreespace(size, isforcode, autoexpand, respectbankborders, align, freespacebyte, rommapper, romdata), rommapper);
+}
+
+
+
+int ratsstart(int snesaddr, const unsigned char * romdata, mapper_t rommapper)
+{
+	int pcaddr=snestopc(snesaddr, rommapper);
+	if (pcaddr<0x7FFF8) return -1;
+	const unsigned char * start=romdata+pcaddr-0x10000;
+	for (int i=0x10000;i>=0;i--)
+	{
+		if (!strncmp((const char*)start+i, "STAR", 4) &&
+				(start[i+4]^start[i+6])==0xFF && (start[i+5]^start[i+7])==0xFF)
+		{
+			if ((start[i+4]|(start[i+5]<<8))>0x10000-i-8-1)
+                return pctosnes( (int) (start-romdata+i), rommapper);
+			return -1;
+		}
+	}
+	return -1;
+}
+
+void resizerats(int snesaddr, int newlen, const unsigned char *romdata, mapper_t rommapper)
+{
+	int pos=snestopc(ratsstart(snesaddr, romdata), rommapper);
+	if (pos<0)
+        return;
+	if (newlen!=1)
+        newlen--;
+	writeromdata_byte(pos+4, (unsigned char)(newlen&0xFF), romdata);
+	writeromdata_byte(pos+5, (unsigned char)((newlen>>8)&0xFF), romdata);
+	writeromdata_byte(pos+6, (unsigned char)((newlen&0xFF)^0xFF), romdata);
+	writeromdata_byte(pos+7, (unsigned char)(((newlen>>8)&0xFF)^0xFF), romdata);
+}
+
+void removerats(int snesaddr, unsigned char clean_byte, const unsigned char * romdata, mapper_t rommapper)
+{
+	int addr=ratsstart(snesaddr, romdata);
+	if (addr<0)
+        return;
+	// randomdude999: don't forget bank borders
+	WalkMetadata(pctosnes(snestopc(addr, rommapper)+8, rommapper), handleprot, romdata);
+	addr=snestopc(addr, rommapper);
+	for (int i=(romdata[addr+4]|(romdata[addr+5]<<8))+8;i>=0;i--)
+        writeromdata_byte(addr+i, clean_byte, romdata);
+}
+
+
+
+void WalkRatsTags(const unsigned char * romdata, mapper_t rommapper,
+                void(*func)(int loc, int len, const unsigned char * romdata))
+{
+	int pos=snestopc(0x108000, rommapper);
+	while (pos<romlen)
+	{
+		if (!strncmp((const char*)romdata+pos, "STAR", 4) &&
+					(romdata[pos+4]^romdata[pos+6])==0xFF && (romdata[pos+5]^romdata[pos+7])==0xFF)
+		{
+			func(pctosnes(pos+8, rommapper), (romdata[pos+4]|(romdata[pos+5]<<8))+1, romdata);
+			pos+=(romdata[pos+4]|(romdata[pos+5]<<8))+1+8;
+		}
+		else pos++;
+	}
+}
+
+void WalkMetadata(const unsigned char * romdata, mapper_t rommapper, int loc, 
+            void(*func)(int loc, char * name, int len, const unsigned char * contents, const unsigned char *romdata))
+{
+	int pcoff=snestopc(loc, rommapper);
+	if (strncmp((const char*)romdata+pcoff-8, "STAR", 4)) return;
+	const unsigned char * metadata=romdata+pcoff;
+	while (isupper(metadata[0]) && isupper(metadata[1]) && isupper(metadata[2]) && isupper(metadata[3]))
+	{
+		if (!strncmp((const char*)metadata, "STOP", 4))
+		{
+			metadata=romdata+pcoff;
+			while (isupper(metadata[0]) && isupper(metadata[1]) && isupper(metadata[2]) && isupper(metadata[3]))
+			{
+				if (!strncmp((const char*)metadata, "STOP", 4))
+					break;
+				func(pctosnes((int)(metadata-romdata), rommapper), 
+                    (char*)const_cast<unsigned char*>(metadata), 
+                    metadata[4], metadata+5, romdata);
+				metadata+=5+metadata[4];
+			}
+			break;
+		}
+		metadata+=5+metadata[4];
+	}
+}
+
+
+
+bool goodchecksum(const unsigned char *romdata, mapper_t rommapper)
+{
+	int checksum = (int) getchecksum(romdata);
+	return ((romdata[snestopc(0x00FFDE, rommapper)] ^ romdata[snestopc(0x00FFDC, rommapper)])==0xFF) && 
+            ((romdata[snestopc(0x00FFDF, rommapper)] ^ romdata[snestopc(0x00FFDD, rommapper)])==0xFF) &&
+			((romdata[snestopc(0x00FFDE, rommapper)]&0xFF) == (checksum&0xFF)) &&
+            ((romdata[snestopc(0x00FFDF, rommapper)]&0xFF) == ((checksum>>8)&0xFF));
+}
+
+void fixchecksum(const unsigned char *romdata, mapper_t rommapper)
+{
+	// randomdude999: clear out checksum bytes before recalculating checksum, this should make it correct on roms that don't have a checksum yet
+	writeromdata(snestopc(0x00FFDC, rommapper), "\xFF\xFF\0\0", 4, romdata);
+	int checksum= (int) getchecksum(romdata);
+	writeromdata_byte(snestopc(0x00FFDE, rommapper), (unsigned char)(checksum&255), romdata);
+	writeromdata_byte(snestopc(0x00FFDF, rommapper), (unsigned char)((checksum>>8)&255), romdata);
+	writeromdata_byte(snestopc(0x00FFDC, rommapper), (unsigned char)((checksum&255)^255), romdata);
+	writeromdata_byte(snestopc(0x00FFDD, rommapper), (unsigned char)(((checksum>>8)&255)^255), romdata);
+}
+
