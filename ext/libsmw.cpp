@@ -88,7 +88,7 @@
  * mode. This means we have to try every mapping mode and check if the 
  * header found is the actual header. This is what the first for does.*/
 
-namespace LibSMW {
+namespace smw {
 
 static int sa1banks[8]={0<<20, 1<<20, -1, -1, 2<<20, 3<<20, -1, -1};
 asar_errid openromerror;
@@ -102,7 +102,7 @@ asar_errid openromerror;
  * attributes.
  * Errors returned: errid_open_rom_failed, errid_open_rom_not_smw_extension,
  *                  errid_open_rom_not_smw_header */
-bool openrom(SnesRom *rom, const char * filename, bool confirm)
+bool openrom(ROM *rom, const char * filename, bool confirm)
 {
     int truelen;
 
@@ -148,7 +148,7 @@ bool openrom(SnesRom *rom, const char * filename, bool confirm)
     // it appears to be buggy (tested against a real ROM, these checks return
     // false).
 	if (snestopc(HEADER_START, rom->mapper)+21 < (int) rom->lenght && 
-        strncmp((const char*)rom->data + snestopc(HEADER_START, rom->mapper), SMWTITLE, TITLE_SIZE));
+        strncmp((const char*)rom->data + snestopc(HEADER_START, rom->mapper), SMWTITLE, TITLE_SIZE))
 	{
 		closerom(rom, false);
 		openromerror = rom->header ? errid_open_rom_not_smw_extension : errid_open_rom_not_smw_header;
@@ -159,7 +159,7 @@ bool openrom(SnesRom *rom, const char * filename, bool confirm)
 }
 
 /* Closes a rom. save does just what you'd expect. */
-uint32_t closerom(SnesRom *rom, bool save)
+uint32_t closerom(ROM *rom, bool save)
 {
 	uint32_t romCrc = 0;
 
@@ -184,10 +184,12 @@ uint32_t closerom(SnesRom *rom, bool save)
         fclose(rom->file);
 	if (rom->data)
         free(const_cast<unsigned char*>(rom->data));
-    if (rom->filename)
+    if (rom->filename) {
         free((void *) rom->filename);
+    }
 	rom->file = nullptr;
 	rom->data = nullptr;
+    rom->filename = nullptr;
 	rom->lenght = 0;
 	return romCrc;
 }
@@ -198,7 +200,7 @@ uint32_t closerom(SnesRom *rom, bool save)
  * It switches to various mapping modes and checks if there's a 
  * correct header there. The "most correct" is chosen. $00FFD5 is
  * later read to find any oddball mapping modes. */
-bool findmapper(SnesRom *rom)
+bool findmapper(ROM *rom)
 {
 	int maxscore = -99999;
 	mapper_t bestmap = mapper_t::lorom;
@@ -226,7 +228,7 @@ bool findmapper(SnesRom *rom)
 }
 
 /* Checks the header, as explained above. */
-int check_header(SnesRom *rom, mapper_t mapper)
+int check_header(ROM *rom, mapper_t mapper)
 {
     int score = 0;
     int highbits = 0;
@@ -277,6 +279,8 @@ int snestopc(int addr, mapper_t rommapper)
         return -1; //not 24bit
     
     switch (rommapper) {
+    case mapper_t::invalid_mapper:
+        return -1;
     case mapper_t::lorom:
         // randomdude999: The low pages ($0000-$7FFF) of banks 70-7D are used
         // for SRAM, the high pages are available for ROM data though
@@ -326,10 +330,11 @@ int snestopc(int addr, mapper_t rommapper)
     case mapper_t::bigsa1rom:
         if ((addr & 0xC00000) == 0xC00000) //hirom
             return (addr & 0x3FFFFF) | 0x400000;
-        if ((addr & 0xC00000) == 0x000000 || (addr & 0xC00000) == 0x800000) //lorom
+        if ((addr & 0xC00000) == 0x000000 || (addr & 0xC00000) == 0x800000) { //lorom
             if ((addr & 0x008000) == 0x000000)
                 return -1;
             return (addr & 0x800000) >> 2 | (addr & 0x3F0000) >> 1 | (addr & 0x7FFF);
+        }
         return -1;
     case mapper_t::norom:
         return addr;
@@ -344,6 +349,8 @@ int pctosnes(int addr, mapper_t rommapper)
         return -1;
 
     switch (rommapper) {
+    case mapper_t::invalid_mapper:
+        return -1;
     case mapper_t::lorom:
         if (addr >= 0x400000)
             return -1;

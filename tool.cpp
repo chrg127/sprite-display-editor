@@ -106,16 +106,59 @@ cleanup:
     return ret;
 }
 
-/* Checks if there are any sprite with extension bytes.
- * This is checked by reading $0EF30F and check if it's equal to 42. If 
- * it is, then the address to a table representing each sprite's data 
- * size is found at $0EF30F. Example
+/* Extension bytes and custom sprite sizes are one of Lunar Magic's
+ * features. It allows any sprite to have 4 additional bytes in the sprite
+ * data and is used by sprite coders for additional features.
+ * The number of extension bytes a sprite has is not, however, stored with
+ * his data. Instead, since Lunar Magic can't modify the way the sprite
+ * data is stored, it reads the byte at $0EF30F and checks if it's equal to
+ * 0x42. If it is, then $0EF30C points to a table containing each sprite's
+ * number of extension bytes. Example:
  * ... 30 D2 12 42 ...
  *     ^        ^
- *     address  byte check */
-void check_sprite_extensions(LibSMW::SnesRom &rom)
-{
+ *     address  byte check 
+ * The table is divided in four tables of 0x100 bytes each: The first one 
+ * corresponds to extra bit 0, the second to extra bit 1, etc. */
 
+#define EXT_TABLE_MAX 0x400
+#define EXT_TABLE_PERBIT 0x100
+
+/* This is where information about what sprites have extension bytes is
+ * stored */
+struct {
+    unsigned char exts[EXT_TABLE_MAX];
+    unsigned char eb[EXT_TABLE_MAX];
+    int eff_len;
+} exttab;
+
+/* This function checks if the extension table exists and parses it,
+ * filling the structure defined above. */
+void check_sprite_extensions(smw::ROM &rom)
+{
+    unsigned int addr;
+    int i, table_end, type;
+    
+    // Check extensions existence byte
+    exttab.eff_len = 0;
+    if (rom.data[smw::snestopc(0x0EF30F, rom.mapper)] != 0x42)
+        return;
+    // Build table address
+    addr = rom.data[smw::snestopc(0x0EF30E, rom.mapper)] << 16;
+    addr |= rom.data[smw::snestopc(0x0EF30D, rom.mapper)] << 8;
+    addr |= rom.data[smw::snestopc(0x0EF30C, rom.mapper)];
+    table_end = addr + EXT_TABLE_MAX;
+    // Parse table. "type" indicates the current "extra bit".
+    for (i = 0; i < EXT_TABLE_MAX; addr++, i++) {
+        type = i/0x100;
+        if (rom.data[addr] == 0)
+            continue;
+        exttab.exts[exttab.eff_len] = rom.data[addr];
+        exttab.eb[exttab.eff_len] = type;
+        exttab.eff_len++;
+        qDebug() << "at:" << addr << "size:" << rom.data[addr]
+                 << "extrabyte:" << type;
+
+    }
 }
 
 /* Reads .mwt file line by line. Example line:

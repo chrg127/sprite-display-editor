@@ -12,7 +12,7 @@
 #include "asar_errors_small.h"
 //#include "autoarray.h"
 
-namespace LibSMW {
+namespace smw {
 
 extern asar_errid openromerror;
 
@@ -38,7 +38,7 @@ struct writtenblockdata {
 	int numbytes;
 };
 
-struct SnesRom {
+struct ROM {
     FILE *file;
     const char *filename;
     const unsigned char *data;
@@ -47,11 +47,11 @@ struct SnesRom {
     bool header;
 };
 
-bool openrom(SnesRom *rom, const char * filename, bool confirm=true);
-uint32_t closerom(SnesRom *rom, bool save = true);
+bool openrom(ROM *rom, const char * filename, bool confirm=true);
+uint32_t closerom(ROM *rom, bool save = true);
 
-bool findmapper(SnesRom *rom);
-int check_header(SnesRom *rom, mapper_t mapper);
+bool findmapper(ROM *rom);
+int check_header(ROM *rom, mapper_t mapper);
 
 int snestopc(int addr, mapper_t rommapper);
 int pctosnes(int addr, mapper_t rommapper);

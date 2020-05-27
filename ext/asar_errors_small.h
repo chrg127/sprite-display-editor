@@ -12,7 +12,7 @@
 
 #define ASAR_ERROR_RANGE_START	5000
 
-namespace LibSMW {
+namespace smw {
 
 enum asar_errid : int
 {
