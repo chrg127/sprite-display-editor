@@ -31,30 +31,33 @@ class Sprite {
     public:
         QString name;
         QString tooltip;
-        unsigned char command;
-        unsigned char extrabytes;
+        unsigned char extra_bits;
         QVector<SpriteTile> tiles;
-        QVector<unsigned char> extensions;
+        unsigned char sprite_data_size; 
+        unsigned char extension_bytes[0xF];
         
         Sprite()
         { 
             name = "";
             tooltip = "";
-            command = 0;
-            extrabytes = 0;
+            extra_bits = 0;
         }
 
-        Sprite(QString n, QString t, unsigned char c, unsigned char eb)
+        Sprite(QString n, QString t, unsigned char eb)
         { 
             name = n;
             tooltip = t;
-            command = c;
-            extrabytes = eb;
+            extra_bits = eb;
         }
 
         int parse_add_tile(const QStringList &s);
 
-        void operator=(const Sprite &s);
+        void operator=(const Sprite &sp)
+        {
+            this->name = sp.name;
+            this->tooltip = sp.tooltip;
+            this->extra_bits = sp.extra_bits;
+        }
 
 };
 

@@ -15,8 +15,9 @@ namespace romutils {
  * good, since we're going to do loads of lookups in the application,
  * and there's no reason to have elements unsorted,
  * Sprites are sorted by their Command, or ID. */
-static QMap<SpriteID, Sprite> spritelist;
+static QMultiMap<SpriteID, Sprite> spritelist;
 
+Sprite get_sprite(SpriteID id);
 //void generate_sprite_list(const QString &romname);
 int read_mw2_file(const QString &romname);
 int read_mwt_file(const QString &romname);

@@ -40,11 +40,3 @@ int Sprite::parse_add_tile(const QStringList &tilelist)
     return ret;
 }
 
-void Sprite::operator=(const Sprite &s)
-{
-    this->name = s.name;
-    this->tooltip = s.tooltip;
-    this->command = s.command;
-    this->extrabytes = s.extrabytes;
-}
-
