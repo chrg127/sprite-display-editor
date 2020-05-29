@@ -26,32 +26,21 @@
 
 namespace romutils {
 
-static QMultiMap<SpriteID, Sprite> spritelist;
+/* Goal: create a data structure for the sprites that lets me lookup them in
+ * the fastest way possible.
+ * Sprites should be found using their ID, and if more than one sprite stays
+ * in one ID, one should also provide both the extra bits and extensions. */ 
+static QMap<SpriteKey, SpriteValue> spritelist;
 
 /* These functions will provide ways to modify the sprite data structure */
-Sprite get_sprite(SpriteID id, unsigned char eb)
+inline void remove_sprite(SpriteKey &key)
 {
-    QList<Sprite> values;
-    int i;
-/*
-    values = spritelist.values(id);
-    for (i = 0; i < values.size(); i++)
-        if (values.at(i).extra_bits == eb)
-            return values.at(i);*/
-    auto it = spritelist.find(id);
-
+    spritelist.remove(key);
 }
 
-int remove_sprite(const SpriteID id, const unsigned char eb)
+inline void remove_all_sprites(void)
 {
-
-}
-
-void remove_all_sprites(void)
-{
-    for (QMap<SpriteID, Sprite>::iterator it = spritelist.begin(); it != spritelist.end(); it++) {
-        it = spritelist.erase(it);
-    }
+    spritelist.clear();
 }
 
 /* Extension bytes and custom sprite sizes are one of Lunar Magic's
@@ -70,7 +59,6 @@ void remove_all_sprites(void)
 
 #define EXT_TABLE_MAX 0x400
 #define EXT_TABLE_PERBIT 0x100
-#define SPR_DEF_SIZE 3
 
 /* This is where information about what sprites have extension bytes is
  * stored */
@@ -97,7 +85,7 @@ int find_sprite_size(const unsigned char id, const unsigned char type)
  * defined above. */
 void check_sprite_extensions(smw::ROM &rom)
 {
-    unsigned int addr, snes_addr;
+    unsigned int addr, pc_addr;
     int i, type;
     
     // Check extensions existence byte
@@ -111,11 +99,11 @@ void check_sprite_extensions(smw::ROM &rom)
     // Parse table. "type" indicates the current "extra bit".
     for (i = 0; i < EXT_TABLE_MAX; addr++, i++) {
         type = i/0x100;
-        snes_addr = smw::snestopc(addr, rom.mapper);
-        if (rom.data[snes_addr] == SPR_DEF_SIZE)
+        pc_addr = smw::snestopc(addr, rom.mapper);
+        if (rom.data[pc_addr] == SPRITE_DEF_SIZE)
             continue;
         size_tab.id[size_tab.eff_len] = i & 0xFF;
-        size_tab.size[size_tab.eff_len] = rom.data[snes_addr];
+        size_tab.size[size_tab.eff_len] = rom.data[pc_addr];
         size_tab.type[size_tab.eff_len] = type;
         size_tab.eff_len++;
 #ifdef DEBUG
@@ -125,6 +113,9 @@ void check_sprite_extensions(smw::ROM &rom)
 #endif
     }
 }
+
+
+
 
 
 /* The mw2 file format is the same as the sprite data in a SMW level. The
@@ -144,15 +135,16 @@ void check_sprite_extensions(smw::ROM &rom)
  * to the custom list. It would probably be more interesting had this 
  * been a level parser. */
 
-/* This is how you get the other fields, anyway: */
-//ypos = ((read_bytes[0] & 0xF0) >> 4) | ((read_bytes[0] & 1) << 4);
-//xpos = (read_bytes[1] & 0xF0) >> 4;
-//screennum = (read_bytes[1] & 0xF) | ((read_bytes[0] & 2) << 3);
+/* This is how you get the other fields, anyway:
+ * ypos = ((read_bytes[0] & 0xF0) >> 4) | ((read_bytes[0] & 1) << 4);
+ * xpos = (read_bytes[1] & 0xF0) >> 4;
+ * screennum = (read_bytes[1] & 0xF) | ((read_bytes[0] & 2) << 3); 
+ */
 
 /* Reads the next sprite bytes from stream and fills sp.
  * Return 1 for error, 2 for end of data byte. */
-int mw2_parsespritedata(QDataStream &mw2st, Sprite &sp,
-        unsigned char &id, char *read_bytes)
+int mw2_parsespritedata(QDataStream &mw2st, SpriteKey &sp,
+        char *read_bytes)
 {
     qint64 nread, toread;
     int i;
@@ -160,25 +152,25 @@ int mw2_parsespritedata(QDataStream &mw2st, Sprite &sp,
     if (mw2st.atEnd())
         return 0;
     // Read first 3 bytes and get the sprite's ID and extra bits.
-    nread = mw2st.readRawData(read_bytes, SPR_DEF_SIZE);
+    nread = mw2st.readRawData(read_bytes, SPRITE_DEF_SIZE);
     if (nread == 1 && *read_bytes == (char) 0xFF)
         return 2;
-    if (nread != SPR_DEF_SIZE) {
+    if (nread != SPRITE_DEF_SIZE) {
 #ifdef DEBUG
         qDebug() << "Error while reading first 3 sprite bytes.";
         qDebug() << "mw2stream state:" << mw2st.atEnd();
 #endif
         return 1;
     }
-    sp.extra_bits = (read_bytes[0] & 0xC) >> 2;
-    id = read_bytes[2];
+    sp.set_extra_bits((read_bytes[0] & 0xC) >> 2);
+    sp.id = read_bytes[2];
 
     // Read extension bytes if sprite size > 3.
-    i = find_sprite_size(id, sp.extra_bits);
+    i = find_sprite_size(sp.id, sp.get_extra_bits());
     if (i == -1)
         return 0;   // No extension bytes
-
-    toread = size_tab.size[i] - SPR_DEF_SIZE;
+    sp.set_data_size(size_tab.size[i]);
+    toread = size_tab.size[i] - SPRITE_DEF_SIZE;
     nread = mw2st.readRawData(read_bytes, toread);
     if (toread != nread) {
 #ifdef DEBUG
@@ -187,7 +179,8 @@ int mw2_parsespritedata(QDataStream &mw2st, Sprite &sp,
         return 1;
     }
     for (i = 0; i < nread; i++)
-        sp.extension_bytes[i] = read_bytes[i];
+        sp.ext_bytes[i] = read_bytes[i];
+
     return 0;
 }
 
@@ -207,8 +200,9 @@ int mw2_readfile(const QString &romname)
     QDataStream mw2stream;
     char *read_bytes;
     int ret = 0, parseret;
-    unsigned char id;
-    Sprite sp;
+    SpriteKey spk;
+    SpriteValue spv;
+
  
     if (!mw2file.exists())
         return 1;   // File error
@@ -225,15 +219,15 @@ int mw2_readfile(const QString &romname)
     
     // Read each sprite's bytes until end of data has been found.
     while (!mw2stream.atEnd()) {
-        parseret = mw2_parsespritedata(mw2stream, sp, id, read_bytes);
+        parseret = mw2_parsespritedata(mw2stream, spk, read_bytes);
         if (parseret == 2)
             break;
         if (parseret == 1) {
             ret = 3;
             goto cleanup;
         }
-        //this is the magic line.
-        spritelist.insert(id, sp);
+        // Insert new element to map.
+        spritelist.insert(spk, spv);
     }
     
     // Check for errors with end of data byte.
@@ -291,13 +285,12 @@ int read_mwt_file(const QString &romname)
  * Again, we have to get the command first to do any operation. */
 int read_ssc_file(const QString &romname)
 {
-    QFile sscfile(romname + ".ssc");
+ /*  QFile sscfile(romname + ".ssc");
     QTextStream sscstream;
     QStringList strlist;
     int ncolumns, err, nlines = 0, extra_bits;
     bool ok;
-    SpriteID cmd;
-    
+ 
     if (!sscfile.exists())
         return 2;
     if (!sscfile.open(QIODevice::ReadOnly | QIODevice::Text))
@@ -337,7 +330,7 @@ int read_ssc_file(const QString &romname)
         }
     }
     sscfile.close();
-
+*/
     return 0;
 }
 

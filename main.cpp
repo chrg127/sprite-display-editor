@@ -1,13 +1,14 @@
-#include <QApplication>
+/*#include <QApplication>
 #include <QMainWindow>
 #include <QDebug>
 #include <QString>
-#include <iostream>
-#include <iomanip>
 #include "main_window.h"
 #include "tool.h"
 #include "ext/libsmw.h"
-#include "ext/asar_errors_small.h"
+#include "ext/asar_errors_small.h"*/
+#include <iostream>
+#include <iomanip>
+#include "sprite.h"
 
 #define DEBUG
 
@@ -33,7 +34,7 @@ int main(int argc, char **argv)
 
 #ifdef DEBUG
 void test(void)
-{
+{/*
     QString mw2file = "test/mw2test";
     int err;
 
@@ -44,7 +45,7 @@ void test(void)
     err = romutils::mw2_readfile(mw2file);
     if (err != 0)
         qDebug() << "Received error:" << err;
-    smw::closerom(&rom, false);
+    smw::closerom(&rom, false);*/
 }
 #endif
 

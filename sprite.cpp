@@ -4,6 +4,27 @@
 #include <QStringList>
 #include <QDebug>
 
+inline bool operator<(const SpriteKey &sk1, const SpriteKey &sk)
+{
+    unsigned char i;
+
+    if (sk1.id < sk.id)
+        return true;
+    if (sk1.id == sk.id && sk1.get_extra_bits() < sk.get_extra_bits())
+        return true;
+    if (sk1.id == sk.id && sk1.get_extra_bits() == sk.get_extra_bits()
+            && sk1.get_data_size() < sk.get_data_size())
+        return true;
+    if (sk1.id == sk.id && sk1.get_extra_bits() == sk.get_extra_bits()
+            && sk1.get_data_size() == sk.get_data_size()) {
+        for (i = 0; i < sk1.get_data_size() - SPRITE_DEF_SIZE; i++)
+            if (sk1.ext_bytes[i] < sk.ext_bytes[i])
+                return true;
+    }
+    return false;
+}
+
+/*
 int Sprite::parse_add_tile(const QStringList &tilelist)
 {
     QStringList slist;
@@ -39,4 +60,4 @@ int Sprite::parse_add_tile(const QStringList &tilelist)
 
     return ret;
 }
-
+*/
