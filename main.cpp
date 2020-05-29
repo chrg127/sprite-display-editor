@@ -17,7 +17,7 @@ void test(void);
 
 int main(int argc, char **argv)
 {
-    QApplication a(argc, argv);
+    //QApplication a(argc, argv);
     //MainWindow window;
 
     //a.setWindowIcon(QIcon("./stuff/icon64.png"));
@@ -41,7 +41,7 @@ void test(void)
 
     smw::openrom(&rom, "test/rom.smc", false);
     romutils::check_sprite_extensions(rom);
-    err = romutils::read_mw2_file(mw2file);
+    err = romutils::mw2_readfile(mw2file);
     if (err != 0)
         qDebug() << "Received error:" << err;
     smw::closerom(&rom, false);

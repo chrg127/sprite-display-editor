@@ -50,6 +50,11 @@ class Sprite {
             extra_bits = eb;
         }
 
+        Sprite(const Sprite &sp)
+        {
+            extra_bits = sp.extra_bits;
+        }
+
         int parse_add_tile(const QStringList &s);
 
         void operator=(const Sprite &sp)

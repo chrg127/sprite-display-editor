@@ -11,18 +11,12 @@ typedef unsigned char SpriteID;
 
 namespace romutils {
 
-/* QMap provides fast lookup and keeps its elements sorted. This is
- * good, since we're going to do loads of lookups in the application,
- * and there's no reason to have elements unsorted,
- * Sprites are sorted by their Command, or ID. */
-static QMultiMap<SpriteID, Sprite> spritelist;
-
 Sprite get_sprite(SpriteID id);
-//void generate_sprite_list(const QString &romname);
-int read_mw2_file(const QString &romname);
-int read_mwt_file(const QString &romname);
-int read_ssc_file(const QString &romname);
+int find_sprite_size(const unsigned char id, const unsigned char type);
 void check_sprite_extensions(smw::ROM &rom);
+int mw2_readfile(const QString &romname);
+int mwt_readfile(const QString &romname);
+int ssc_readfile(const QString &romname);
 
 }
     
