@@ -8,11 +8,9 @@
 
 namespace romutils {
 
-int find_sprite_size(const unsigned char id, const unsigned char type);
-void check_sprite_extensions(smw::ROM &rom);
-int mw2_readfile(const QString &romname);
-int mwt_readfile(const QString &romname);
-int ssc_readfile(const QString &romname);
+int mw2_mwt_readfile(const QString &romname);
+//int mwt_readfile(const QString &romname);
+//int ssc_readfile(const QString &romname);
 
 }
     
