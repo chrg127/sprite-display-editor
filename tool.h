@@ -10,7 +10,7 @@ namespace romutils {
 
 int mw2_mwt_readfile(const QString &romname);
 //int mwt_readfile(const QString &romname);
-//int ssc_readfile(const QString &romname);
+int ssc_readfile(const QString &romname);
 
 }
     

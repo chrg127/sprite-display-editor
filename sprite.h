@@ -90,9 +90,9 @@ public:
     
     // Could easily be inline... but this way I avoid having an extern declaration
     // of size_table
-    unsigned char get_data_size(void);
+    unsigned char get_data_size(void) const;
 
-    unsigned char get_ext_size(void)
+    unsigned char get_ext_size(void) const
     { return get_data_size() - SPRITE_DEF_DATA_SIZE; }
 };
 
@@ -145,7 +145,9 @@ bool operator==(const SpriteValue &sv1, const SpriteValue &sv2);
 int sprite_insert(SpriteKey &key, SpriteValue &value);
 inline void remove_sprite(SpriteKey &key, SpriteValue &value);
 inline void remove_all_sprites(void);
-//void        sprite_get(SpriteKey &key);
+void get_sprite_value(const SpriteKey &sk, QVector<SpriteValue *> arr);
+void print_sprites(void);
+
 
 }
 

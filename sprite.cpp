@@ -41,7 +41,7 @@ void load_size_table(smw::ROM &rom)
     }
 }
 
-unsigned char SpriteKey::get_data_size(void)
+unsigned char SpriteKey::get_data_size(void) const
 {
     return _size_table[this->extra_bits()*0x100+this->id];
 }
@@ -105,6 +105,30 @@ inline void remove_sprite(SpriteKey &key, SpriteValue &value)
 inline void remove_all_sprites(void)
 {
     sprite_map.clear();
+}
+
+void print_sprites(void)
+{
+    QMultiMap<SpriteKey, SpriteValue>::iterator it;
+    int i;
+
+    for (it = sprite_map.begin(); it != sprite_map.end(); it++) {
+        qDebug() << "ID:" << it.key().id << "extra bits:" << it.key().extra_bits()
+                 << "Name:" << it.value().name;
+        for (i = 0; i < it.key().get_ext_size(); i++)
+            qDebug() << it.value().ext_bytes[i];
+        qDebug() << "Tooltip:" << it.value().tooltip;
+    }
+}
+
+void get_sprite_value(const SpriteKey &sk, QVector<SpriteValue *> arr)
+{
+    int i = 0;
+    auto it = sprite_map.find(sk);
+    while (it != sprite_map.end() && it.key() == sk) {
+        arr.insert(i, &(it.value()));
+        i++;
+    }
 }
 
 }

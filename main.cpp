@@ -46,6 +46,10 @@ void test(void)
     err = romutils::mw2_mwt_readfile(mw2file);
     if (err != 0)
         qDebug() << "Received error:" << err;
+    err = romutils::ssc_readfile(mw2file);
+    if (err != 0)
+        qDebug() << "Received error:" << err << "while reading ssc file";
+    sprite::print_sprites();
     smw::closerom(&rom, false);
 }
 #endif

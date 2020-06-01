@@ -1,29 +1,5 @@
-/* Custom sprite data is split into 3 files: the mw2 file, the mwt file and the ssc file.
- * The mw2 consists of the main sprite data: this is parsed first
- * */
-
-/* The mw2 file format is the same as the sprite data in a SMW level. The
- * first byte consists of sprite data header, which should always be 00.
- * Next is the list of all sprites. Each sprite is usually composed of 3 bytes:
- * yyyyEESY XXXXssss NNNNNNNN
- * yyyy - Y position
- * EE - Extra bits
- * XXXX - X position
- * ssss - Screen number
- * NNNNNNNN - Sprite ID (or command)
- * last byte: end of data. Should be 0xFF.
- * The size of the sprite data can change, as explained earlier. For this
- * reason, before parsing this data we must find the size of each sprite.
- * No field but the sprite's ID and the extra bits interest us, since 
- * they only tell about the position the sprite was when it was added 
- * to the custom list. It would probably be more interesting had this 
- * been a level parser. */
-
-/* This is how you get the other fields, anyway:
- * ypos = ((read_bytes[0] & 0xF0) >> 4) | ((read_bytes[0] & 1) << 4);
- * xpos = (read_bytes[1] & 0xF0) >> 4;
- * screennum = (read_bytes[1] & 0xF) | ((read_bytes[0] & 2) << 3); 
- */
+/* This is a library for reading and writing "Lunar Magic files", in particular the
+ * mw2, mwt and ssc files. */
 
 #include "tool.h"
 
@@ -54,9 +30,42 @@
 
 namespace romutils {
 
+/*
+ * Lunar Magic provides a way to use custom sprites without using the insert manual:
+ * simply place the custom sprite in the first screen of a level and press Ctrl-Alt-F12.
+ * When inserting a custom sprite this way, it will generate two files: an mw2 file,
+ * containing binary sprite data and an mwt file, containing the name assigned to the
+ * sprite. Additionally, two other files can be used: an ssc file, which will contain
+ * sprite tooltips and an s16 file containing map16 data used by sprites.
+ */
 
-/* Reads the next sprite bytes from stream and fills sp.
- * Return 1 for error, 2 for end of data byte. */
+/* The mw2 file format is the same as the sprite data in a SMW level. The
+ * first byte consists of sprite data header, which should always be 00.
+ * Next is the list of all sprites. Each sprite is usually composed of 3 bytes:
+ * yyyyEESY XXXXssss NNNNNNNN
+ * yyyy - Y position
+ * EE - Extra bits
+ * XXXX - X position
+ * ssss - Screen number
+ * NNNNNNNN - Sprite ID (or command)
+ * Last byte: end of data. Should be 0xFF.
+ * The sprite data, however, can change depending on the size of the sprite. If the
+ * sprite size is > 3, then any other byte after the first 3 are "extension bytes".
+ * 
+ * This function reads bytes from the stream and parses them. It will first read 3 bytes,
+ * so that it can find the ID and extra bits. The other fields in the format are not needed
+ * and are ignored.
+ * After reading the first 3 bytes, it will read any remaining bytes according to the sprite
+ * size: those are the sprite's extension bytes and will be saved in the sprite's SpriteValue.
+ * */
+
+/* This is how you get the other fields, anyway:
+ * ypos = ((read_bytes[0] & 0xF0) >> 4) | ((read_bytes[0] & 1) << 4);
+ * xpos = (read_bytes[1] & 0xF0) >> 4;
+ * screennum = (read_bytes[1] & 0xF) | ((read_bytes[0] & 2) << 3); 
+ */
+
+/* Returns 1 for error, 2 for end of data byte. */
 static int mw2_parse(QDataStream &mw2stream, sprite::SpriteKey &spk, sprite::SpriteValue &spv,
         char *read_bytes)
 {
@@ -97,48 +106,42 @@ static int mw2_parse(QDataStream &mw2stream, sprite::SpriteKey &spk, sprite::Spr
     return 0;
 }
 
-/* Parses a single line from the mwt file. Returns 1 on error.
- * Line format: (sprite id)\t(sprite name)\n
- * The sprite ID can be omitted. If it's present, the function returns 2,
- * otherwise returns 0 (to mean: if ret == 0, do no error checking on id) */
+/* The mwt format is really simple: Each line is the name of the sprite (yes, including the sprite ID).
+ * This function parses a single line from the mwt file. It essentially provides better error checking,
+ * since LM does not check if the IDs written in the mwt file and what's in the mw2 file match (for example,
+ * one could have a custom sprite with ID 0A and write that this is a sprite with ID 05). If one wants to check
+ * if two sprites don't have matching IDs in the mw2 and mwt file, he may use this function.
+ * It'll return 2 if it finds an ID and -1 if the stream is at end. */
 static int mwt_parse(QTextStream &mwtstream, unsigned char &id, QString &name)
 {
-    QStringList strlist;
-    int name_col = 0, ret = 0;
-    bool ok;
-
-    strlist = mwtstream.readLine().split('\t', QString::SkipEmptyParts);
-    if (strlist.size() > 2 || strlist.size() == 0) {
-#ifdef DEBUG
-        qDebug() << "ERROR: either 1 or 2 columns allowed";
-#endif
+    QString first_word, rest_of_line = "";
+    bool ok = false;
+    
+    if (mwtstream.atEnd())
+        return -1;
+    mwtstream >> first_word;
+    id = first_word.toInt(&ok, 16);
+    rest_of_line = mwtstream.readLine().trimmed();
+    if (ok) {
+        name = rest_of_line;
         return 1;
     }
-    if (strlist.size() == 2) {
-        id = strlist[0].toInt(&ok, 16);
-        if (!ok)
-            return 1;
-        name_col = 1;
-        ret = 2;
-    }
-    name = strlist[name_col];
-    return ret;
+    first_word += rest_of_line;
+    name = first_word;
+    return 0;
 }
 
-/* Reads the mw2 file associated with the ROM. romname must be the full
- * or relative path to the ROM, without extension.
- * Using this function is how sprites are added to the global spritelist
- * data structure: this is where sprite ID, extra bits and extension bytes
- * are found.
- * This function SHOULD be called after check_sprite_extensions. It is
- * not necessary to do so, but read errors will happen if not done so. 
- *
- * Returns 1 for any file error, 2 for byte header error, 3 for error
- * reading sprite data, 4 for end of file byte error */
-/* Reads .mwt file line by line.Example line:
- * (cmd)\t(sprite name)\n 
- * After splitting a line, it converts the command and finds the sprite 
- * using the command, then it will update its name. */
+/* Simultaneously reads both the mw2 file and mwt file and returns the following error codes:
+ *  - 0: Success
+ *  - 1: The mw2 or mwt file does not exist (or can't open). In this case, it is best not to continue;
+ *  - 2: The mw2 file has a bad format;
+ *  - 3: The mwt file is longer than the mw2 file (I.E. has more lines and more possible information);
+ *  - 4: The mw2 file is longer than the mwt file. In this case, all information found in the mw2 file should be kept;
+ * Because reading the mwt file by itself would not really provide any information on with what to associated each
+ * name, it is better to read sprite bytes and name simultaneously. This function also inserts sprites in the
+ * global sprite structure; therefore, make sure to call load_size_table before calling this function, and, if
+ * a fatal error is found, to clear the sprite structure.
+ */
 int mw2_mwt_readfile(const QString &romname)
 {
     QFile mw2file(romname + ".mw2"), mwtfile(romname + ".mwt");
@@ -146,8 +149,6 @@ int mw2_mwt_readfile(const QString &romname)
     QTextStream mwtstream;
     char *read_bytes;
     int ret = 0, parseret;
-    unsigned char mwt_id;
-    QString mwt_name;
     sprite::SpriteKey spk;
     sprite::SpriteValue spv;
 
@@ -164,105 +165,116 @@ int mw2_mwt_readfile(const QString &romname)
 
     // Read single byte header.
     if (mw2stream.readRawData(read_bytes, 1) != 1 || *read_bytes != 0x00) {
-        ret = 1;
+        ret = 2;
         goto cleanup;
     }
     
     while (!mw2stream.atEnd()) {
         parseret = mw2_parse(mw2stream, spk, spv, read_bytes);
         if (parseret == 1) {
-            ret = 1;
+            ret = 2;
             goto cleanup;
         }
+        // Check if mw2 end of file byte has been found -- the end of file byte has been read at this point
         if (parseret == 2)
             break;
-        parseret = mwt_parse(mwtstream, mwt_id, mwt_name);
-        if (parseret == 2 && mwt_id != spk.id) {
-#ifdef DEBUG
-            qDebug() << "ERROR: non matching IDs:" << spk.id << "and" << mwt_id << '\n';
-#endif
-            return 1;
-        }
-        spv.name = mwt_name;
-        // Insert sprite. At this point, the information retrieved are:
-        // ID, extra bits, name, extension bytes
-#ifdef DEBUG
-        qDebug() << "ID:" << spk.id << "extra bits:" << spk.extra_bits()
-                 << "name:" << spv.name << '\n';
-#endif
+        
+        // It is worth mentioning that if the mwt stream is at end, but not the mw2 stream is not, the loop
+        // will keep going and won't provide any name to new found sprites.
+        if (!mwtstream.atEnd())
+            spv.name = mwtstream.readLine().trimmed();
+        else
+            ret = 4;
         sprite::sprite_insert(spk, spv);
-
+        spv.name = "";
     }
     
     // Check for errors with end of data byte.
     if (mw2stream.atEnd() && *read_bytes != (char) 0xFF) {
-#ifdef DEBUG
-        qDebug() << "Bad format";
-#endif
-        ret = 4;    // End of file byte error
+        ret = 2;
+        goto cleanup;
     }
 
-    if (!mwtstream.atEnd()) {
-#ifdef DEBUG
-        qDebug() << "The mwt file hasn't been read all the way. This might be a bug.";
-#endif
-    }
+    if (!mwtstream.atEnd())
+        ret = 3;
 
-cleanup:    
+cleanup:
+#ifdef DEBUG
+    if (ret == 2)
+        qDebug() << "ERROR: mw2_mwt_readfile: bad mw2 format";
+    else if (ret == 3)
+        qDebug() << "ERROR: mw2_mwt_readfile: the mwt file hasn't been read all the way.";
+    else if (ret == 4)
+        qDebug() << "ERROR: mw2_mwt_readfile: already finished reading mwt file. The mw2 file might contain extra entries.";
+#endif
+    mw2file.close();
+    mwtfile.close();
     delete read_bytes;
     return ret;
-    return 0;
 }
 
-
-/* Parses a single line and does some other stuff.  */
-/*
-int ssc_parse(QTextStream &mwtstream, sprite::SpriteKey &spk, sprite::SpriteValue &spv)
+/* The ssc file contains sprite tooltip and information about their graphics. Its format is:
+ *  - (id)\t(type(20/30))\t(tooltip)\n
+ *  - (id)\t(type(22/32))\t(spritetileinfo...)\n
+ * The line must have at least 2 columns. The type column also indicates the line type: 
+ * if the last digit is 0, then it contains a tooltip; if it's 2, then it contains sprite tiles.
+ * The first digit is the extra bits, obviously.
+ * Returns 1 for parsing error. */
+int ssc_parse(QTextStream &sscstream)
 {
     QStringList strlist;
     bool ok;
-    unsigned char id, extra_bits, line_type;
-
-    strlist = mwtstream.readline().split('\t', QString::SkipEmptyParts);
+    int i, line_type;
+    sprite::SpriteKey sk;
+    QVector<sprite::SpriteValue *> svarr;
+    //SpriteValue sv;
+    
+    // Read line and get ID and extra bits.
+    strlist = sscstream.readLine().split('\t', QString::SkipEmptyParts);
     if (strlist.size() < 2)
         return 1;
-    id = strlist[0].toInt(&ok, 16);
-    extra_bits = strlist[1].toInt(&ok);
+    sk.id = strlist[0].toInt(&ok, 16);
+    sk.extra_bits(strlist[1].toInt(&ok));
     if (!ok)
         return 1;
-    line_type = extra_bits % 10;
+    // Find line type.
+    line_type = sk.extra_bits() % 10;
     if (line_type != 0 && line_type != 2)
         return 1;
-    extra_bits /= 10;
-    if (extra_bits < 0 || extra_bits > 3)
+    sk.extra_bits(sk.extra_bits() / 10);
+
+    // get sprite values on which to operate
+    get_sprite_value(sk, svarr);
+    if (svarr.size() == 0) {
+        // deal with no sprite found
         return 1;
-    
+    }
+
+    // type == 0: tooltip
     if (line_type == 0) {
         if (strlist.size() != 3)
             return 1;
-        spv.tooltip = tooltip; // hopefully this just copies the string
+        for (i = 0; i < svarr.size(); i++)
+            svarr[i]->tooltip = strlist[2];
         return 0;
-    } else if (line_type == 2) {
-               return 0;
+    }
+    // type == 2: sprite tiles
+    if (line_type == 2) {
+        strlist.removeAt(0);
+        strlist.removeAt(1);
+        for (i = 0; i < strlist.size(); i++)
+            qDebug() << strlist[i];
+        return 0;
     }
     return 1;
-}*/
+}
 
-/* Reads .ssc file line by line. In an ssc file there can be two kind of 
- * lines:
- *  - (cmd)\t(type(20/30))\t(tooltip)\n
- *  - (cmd)\t(type(20/30))\t(spritetileinfo...)\n
- * On the first type, we just need to collect the tooltip.
- * On the second, we'll have to collect and insert every sprite tile.
- * Again, we have to get the command first to do any operation. */
-/*
+/* Reads the ssc file. Returns 1 on error. */
 int ssc_readfile(const QString &romname)
 {
-   QFile sscfile(romname + ".ssc");
+    QFile sscfile(romname + ".ssc");
     QTextStream sscstream;
-    QStringList strlist;
-    int ncolumns, err, nlines = 0, extra_bits;
-    bool ok;
+    int parseret;
  
     if (!sscfile.exists())
         return 2;
@@ -271,41 +283,16 @@ int ssc_readfile(const QString &romname)
     
     sscstream.setDevice(&sscfile);
     while (!sscstream.atEnd()) {
-        strlist = sscstream.readLine().split('\t',
-                QString::SkipEmptyParts);
-        nlines++;
-        cmd = strlist[0].toInt(&ok, 16);
-        if (!ok) {
-            qDebug() << "Error at line" << nlines 
-                << ": couldn't convert cmd";
+        parseret = ssc_parse(sscstream);
+        if (parseret == 1) {
+            qDebug() << "an error happened somewhere";
             return 1;
-        }
-        extra_bits = strlist[1].toInt(&ok)/10;
-        ncolumns = strlist.size();
-
-        if (ncolumns < 3) {
-            qDebug() << "Error at line" << nlines 
-                << ": ncolumns less than 3";
-            return 3;
-        }
-        // This is bad. Check what type of line it is can be done by
-        // checking the extra bits column (column 1)
-        if (ncolumns == 3 && strlist[2][0].isDigit()) // Tooltip
-            get_sprite(cmd, extra_bits).tooltip = strlist[2];
-        else {  // Sprite tiles
-            strlist.removeAt(0);    // Remove cmd and extrabytes
-            strlist.removeAt(1);
-            err = get_sprite(cmd, extra_bits).parse_add_tile(strlist);
-            if (err != 0) {
-                qDebug() << "Error at line" << nlines 
-                         << ": not a spritetile string";
-            }
         }
     }
     sscfile.close();
 
     return 0;
-}*/
+}
 
 
 }
