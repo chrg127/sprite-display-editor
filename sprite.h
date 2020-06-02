@@ -124,6 +124,8 @@ struct SpriteValue {
         for (unsigned char i = 0; i < SPRITE_MAX_DATA_SIZE; i++)
             ext_bytes[i] = 0;
     }
+
+    int add_tile_str(QString &tstr);
 };
 
 /* Function prototypes */
@@ -145,7 +147,10 @@ bool operator==(const SpriteValue &sv1, const SpriteValue &sv2);
 int sprite_insert(SpriteKey &key, SpriteValue &value);
 inline void remove_sprite(SpriteKey &key, SpriteValue &value);
 inline void remove_all_sprites(void);
-void get_sprite_value(const SpriteKey &sk, QVector<SpriteValue *> arr);
+/* Gets a reference to each sprite value for a SpriteKey. If no sprite values were
+ * found, it'll insert a new one for that key, then get a reference to it.
+ * All the references are put in a vector. */
+void get_sprite_value(const SpriteKey &sk, QVector<SpriteValue *> &arr);
 void print_sprites(void);
 
 

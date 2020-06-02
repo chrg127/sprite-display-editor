@@ -115,46 +115,52 @@ void print_sprites(void)
     for (it = sprite_map.begin(); it != sprite_map.end(); it++) {
         qDebug() << "ID:" << it.key().id << "extra bits:" << it.key().extra_bits()
                  << "Name:" << it.value().name;
+        qDebug() << "Tooltip:" << it.value().tooltip;
+        qDebug() << "Extension bytes:";
         for (i = 0; i < it.key().get_ext_size(); i++)
             qDebug() << it.value().ext_bytes[i];
-        qDebug() << "Tooltip:" << it.value().tooltip;
+        qDebug() << "Sprite tiles:";
+        for (auto tile : it.value().tiles)
+            qDebug() << "x:" << tile.x << "y:" << tile.y << "map16:" << tile.map16tile;
+        qDebug() << "";
     }
 }
 
-void get_sprite_value(const SpriteKey &sk, QVector<SpriteValue *> arr)
+void get_sprite_value(const SpriteKey &sk, QVector<SpriteValue *> &arr)
 {
     int i = 0;
+    SpriteValue sv;
+
     auto it = sprite_map.find(sk);
+    if (it == sprite_map.end()) {
+        it = sprite_map.insert(sk, sv);
+        arr.insert(0, &(it.value()));
+        return;
+    }
     while (it != sprite_map.end() && it.key() == sk) {
         arr.insert(i, &(it.value()));
         i++;
+        it++;
     }
 }
 
-}
-/*
-int Sprite::parse_add_tile(const QStringList &tilelist)
+int SpriteValue::add_tile_str(QString &tstr)
 {
-    QStringList slist;
     SpriteTile st;
-    int ret = 0;
+    QStringList tokens;
     bool ok;
 
-    for (auto &tilestr : tilelist) {
-        slist = tilestr.split(',', 
-            QString::SkipEmptyParts);
-        if (slist.size() != 3) {
-            qDebug() << "ERROR: Invalid size";
-            ret++;
-            continue;
-        }
-        st.x = slist[0].toInt(&ok, 0);
-        st.y = slist[1].toInt(&ok, 0);
-        st.map16tile = (unsigned short) slist[2].toInt(&ok, 16);
-        tiles.append(st);
-    }
-
-    return ret;
+    tokens = tstr.split(',');
+    if (tokens.size() != 3)
+        return 1;
+    st.x = tokens[0].toInt(&ok);
+    st.y = tokens[1].toInt(&ok);
+    st.map16tile = tokens[2].toInt(&ok);
+    if (!ok)
+        return 1;
+    this->tiles.append(st);
+    return 0;
 }
-*/
+
+}
 

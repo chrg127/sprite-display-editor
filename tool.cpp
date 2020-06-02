@@ -222,54 +222,43 @@ cleanup:
  * Returns 1 for parsing error. */
 int ssc_parse(QTextStream &sscstream)
 {
-    QStringList strlist;
+    QString word, ebword, tooltip;
+    QStringList tilelist;
+    int line_type, i, j;
     bool ok;
-    int i, line_type;
     sprite::SpriteKey sk;
+    unsigned char eb;
     QVector<sprite::SpriteValue *> svarr;
-    //SpriteValue sv;
     
-    // Read line and get ID and extra bits.
-    strlist = sscstream.readLine().split('\t', QString::SkipEmptyParts);
-    if (strlist.size() < 2)
+    if (sscstream.atEnd())
         return 1;
-    sk.id = strlist[0].toInt(&ok, 16);
-    sk.extra_bits(strlist[1].toInt(&ok));
+    sscstream >> word >> ebword;
+    sk.id = word.toInt(&ok, 16);
+    eb = ebword.toInt(&ok);
     if (!ok)
         return 1;
-    // Find line type.
-    line_type = sk.extra_bits() % 10;
-    if (line_type != 0 && line_type != 2)
-        return 1;
-    sk.extra_bits(sk.extra_bits() / 10);
+    line_type = eb % 10;
+    sk.extra_bits(eb/10);
 
     // get sprite values on which to operate
     get_sprite_value(sk, svarr);
-    if (svarr.size() == 0) {
-        // deal with no sprite found
-        return 1;
-    }
 
-    // type == 0: tooltip
     if (line_type == 0) {
-        if (strlist.size() != 3)
-            return 1;
+        tooltip = sscstream.readLine().trimmed();
         for (i = 0; i < svarr.size(); i++)
-            svarr[i]->tooltip = strlist[2];
+            svarr[i]->tooltip = tooltip;
         return 0;
-    }
-    // type == 2: sprite tiles
-    if (line_type == 2) {
-        strlist.removeAt(0);
-        strlist.removeAt(1);
-        for (i = 0; i < strlist.size(); i++)
-            qDebug() << strlist[i];
+    } else if (line_type == 2) {
+        tilelist = sscstream.readLine().trimmed().split(' ', QString::SkipEmptyParts);
+        for (i = 0; i < svarr.size(); i++)
+            for (j = 0; j < tilelist.size(); j++)
+                svarr[i]->add_tile_str(tilelist[j]);
         return 0;
     }
     return 1;
 }
 
-/* Reads the ssc file. Returns 1 on error. */
+/* Reads the ssc file. Returns 1 on format error. */
 int ssc_readfile(const QString &romname)
 {
     QFile sscfile(romname + ".ssc");
@@ -285,7 +274,9 @@ int ssc_readfile(const QString &romname)
     while (!sscstream.atEnd()) {
         parseret = ssc_parse(sscstream);
         if (parseret == 1) {
-            qDebug() << "an error happened somewhere";
+#ifdef DEBUG
+            qDebug() << "ERROR: Bad format.";
+#endif
             return 1;
         }
     }
