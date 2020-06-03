@@ -38,18 +38,23 @@ void test(void)
 {
     QString mw2file = "test/random";
     int err;
+    QMultiMap<sprite::SpriteKey, sprite::SpriteValue> sprite_map;
 
     smw::ROM rom;
 
     smw::openrom(&rom, "test/rom.smc", false);
     sprite::load_size_table(rom);
-    err = romutils::mw2_mwt_readfile(mw2file);
+    err = romutils::mw2_mwt_readfile(sprite_map, mw2file);
     if (err != 0)
         qDebug() << "Received error:" << err;
-    err = romutils::ssc_readfile(mw2file);
+    err = romutils::ssc_readfile(sprite_map, mw2file);
     if (err != 0)
         qDebug() << "Received error:" << err << "while reading ssc file";
-    sprite::print_sprites();
+    sprite::print_sprites(sprite_map);
+    romutils::mw2_writefile(sprite_map, "test/mw2out");
+    romutils::mwt_writefile(sprite_map, "test/mwtout");
+    romutils::ssc_writefile(sprite_map, "test/sscout");
+    sprite_map.clear();
     smw::closerom(&rom, false);
 }
 #endif

@@ -14,41 +14,36 @@ namespace sprite {
  * loaded or not. */
 static unsigned char _size_table[SPRITE_SIZE_TABLE_MAX];
 
-void load_size_table(smw::ROM &rom)
-{
-    unsigned int addr, pc_addr;
-    int i;
-    
-    // Check if the table exists
-    if (rom.data[smw::snestopc(0x0EF30F, rom.mapper)] != 0x42) {
-        std::memset(_size_table, SPRITE_DEF_DATA_SIZE, SPRITE_SIZE_TABLE_MAX);
-        return;
-    }
-    // Build table address and copy table
-    addr = rom.data[smw::snestopc(0x0EF30E, rom.mapper)] << 16;
-    addr |= rom.data[smw::snestopc(0x0EF30D, rom.mapper)] << 8;
-    addr |= rom.data[smw::snestopc(0x0EF30C, rom.mapper)];
-    pc_addr = smw::snestopc(addr, rom.mapper);
-    i = 0;
-    while (i != SPRITE_SIZE_TABLE_MAX) {
-        _size_table[i] = rom.data[pc_addr];
-#ifdef DEBUG
-        if (rom.data[pc_addr] != 3)
-            qDebug() << "At:" << addr << "size:" << rom.data[pc_addr] << "i:" << i;
-#endif
-        i++;
-        pc_addr++;
-    }
-}
+/* The main data structure for sprites, should only be accessible from here. */
+//static QMultiMap<SpriteKey, SpriteValue> sprite_map;
+
+
 
 unsigned char SpriteKey::get_data_size(void) const
 {
     return _size_table[this->extra_bits()*0x100+this->id];
 }
 
+int SpriteValue::add_tile_str(QString &tstr)
+{
+    SpriteTile st;
+    QStringList tokens;
+    bool ok;
+
+    tokens = tstr.split(',');
+    if (tokens.size() != 3)
+        return 1;
+    st.x = tokens[0].toInt(&ok);
+    st.y = tokens[1].toInt(&ok);
+    st.map16tile = tokens[2].toInt(&ok, 16);
+    if (!ok)
+        return 1;
+    this->tiles.append(st);
+    return 0;
+}
 
 
-/* For using QMultiMap */
+
 bool operator<(const SpriteKey &s1, const SpriteKey &s2)
 {
     if (s1.id < s2.id)
@@ -81,52 +76,35 @@ bool operator==(const SpriteValue &sv1, const SpriteValue &sv2)
         if (sv1.ext_bytes[i] != sv2.ext_bytes[i])
             return false;
     return true;
-
 }
 
 
 
 
-static QMultiMap<SpriteKey, SpriteValue> sprite_map;
-
-int sprite_insert(SpriteKey &key, SpriteValue &value)
+void load_size_table(smw::ROM &rom)
 {
-    if (sprite_map.contains(key, value))
-        return 1;
-    sprite_map.insert(key, value);
-    return 0;
-}
-
-inline void remove_sprite(SpriteKey &key, SpriteValue &value)
-{
-    sprite_map.remove(key, value);
-}
-
-inline void remove_all_sprites(void)
-{
-    sprite_map.clear();
-}
-
-void print_sprites(void)
-{
-    QMultiMap<SpriteKey, SpriteValue>::iterator it;
+    unsigned int addr, pc_addr;
     int i;
-
-    for (it = sprite_map.begin(); it != sprite_map.end(); it++) {
-        qDebug() << "ID:" << it.key().id << "extra bits:" << it.key().extra_bits()
-                 << "Name:" << it.value().name;
-        qDebug() << "Tooltip:" << it.value().tooltip;
-        qDebug() << "Extension bytes:";
-        for (i = 0; i < it.key().get_ext_size(); i++)
-            qDebug() << it.value().ext_bytes[i];
-        qDebug() << "Sprite tiles:";
-        for (auto tile : it.value().tiles)
-            qDebug() << "x:" << tile.x << "y:" << tile.y << "map16:" << tile.map16tile;
-        qDebug() << "";
+    
+    // Check if the table exists
+    if (rom.data[smw::snestopc(0x0EF30F, rom.mapper)] != 0x42) {
+        std::memset(_size_table, SPRITE_DEF_DATA_SIZE, SPRITE_SIZE_TABLE_MAX);
+        return;
     }
+    // Build table address and copy table
+    addr = rom.data[smw::snestopc(0x0EF30E, rom.mapper)] << 16;
+    addr |= rom.data[smw::snestopc(0x0EF30D, rom.mapper)] << 8;
+    addr |= rom.data[smw::snestopc(0x0EF30C, rom.mapper)];
+    pc_addr = smw::snestopc(addr, rom.mapper);
+    i = 0;
+    while (i != SPRITE_SIZE_TABLE_MAX)
+        _size_table[i++] = rom.data[pc_addr++];
 }
 
-void get_sprite_value(const SpriteKey &sk, QVector<SpriteValue *> &arr)
+
+
+void get_sprite_values(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
+        const SpriteKey &sk, QVector<SpriteValue *> &arr)
 {
     int i = 0;
     SpriteValue sv;
@@ -144,22 +122,25 @@ void get_sprite_value(const SpriteKey &sk, QVector<SpriteValue *> &arr)
     }
 }
 
-int SpriteValue::add_tile_str(QString &tstr)
+void print_sprites(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map)
 {
-    SpriteTile st;
-    QStringList tokens;
-    bool ok;
+    QMultiMap<SpriteKey, SpriteValue>::iterator it;
+    int i;
 
-    tokens = tstr.split(',');
-    if (tokens.size() != 3)
-        return 1;
-    st.x = tokens[0].toInt(&ok);
-    st.y = tokens[1].toInt(&ok);
-    st.map16tile = tokens[2].toInt(&ok);
-    if (!ok)
-        return 1;
-    this->tiles.append(st);
-    return 0;
+    for (it = sprite_map.begin(); it != sprite_map.end(); it++) {
+        if (it.value().tiles.size() != 0) 
+            continue;
+        qDebug() << "ID:" << it.key().id << "extra bits:" << it.key().extra_bits()
+                 << "Name:" << it.value().name;
+        qDebug() << "Tooltip:" << it.value().tooltip;
+        qDebug() << "Extension bytes:";
+        for (i = 0; i < it.key().get_ext_size(); i++)
+            qDebug() << it.value().ext_bytes[i];
+        qDebug() << "Sprite tiles:";
+        for (auto tile : it.value().tiles)
+            qDebug() << "x:" << tile.x << "y:" << tile.y << "map16:" << tile.map16tile;
+        qDebug() << "";
+    }
 }
 
 }

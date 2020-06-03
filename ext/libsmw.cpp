@@ -111,7 +111,6 @@ bool openrom(ROM *rom, const char * filename, bool confirm)
 		openromerror = errid_open_rom_failed;
 		return false;
 	}
-    rom->filename = strdup(filename);
 
 	rom->header = false;                // Find if rom has header
 	if (strlen(filename) > 4) {
@@ -184,12 +183,8 @@ uint32_t closerom(ROM *rom, bool save)
         fclose(rom->file);
 	if (rom->data)
         free(const_cast<unsigned char*>(rom->data));
-    if (rom->filename) {
-        free((void *) rom->filename);
-    }
 	rom->file = nullptr;
 	rom->data = nullptr;
-    rom->filename = nullptr;
 	rom->lenght = 0;
 	return romCrc;
 }

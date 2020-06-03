@@ -9,6 +9,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include "asar_errors_small.h"
 //#include "autoarray.h"
 
@@ -40,11 +41,27 @@ struct writtenblockdata {
 
 struct ROM {
     FILE *file;
-    const char *filename;
     const unsigned char *data;
     int lenght;
     mapper_t mapper;
     bool header;
+
+    ROM()
+    {
+        file = nullptr;
+        data = nullptr;
+        lenght = 0;
+        mapper = mapper_t::lorom;
+        header = false;
+    }
+
+    ~ROM()
+    {
+        if (file)
+            fclose(file);
+        if (data)
+            free((void *)data);
+    }
 };
 
 bool openrom(ROM *rom, const char * filename, bool confirm=true);

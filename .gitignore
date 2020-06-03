@@ -3,3 +3,6 @@ debug
 release
 .qmake.stash
 *.gch
+test/mw2out.mw2
+test/mwtout.mwt
+test/sscout.ssc

@@ -82,18 +82,26 @@ public:
         : _extra_bits(m_extra_bits & 3), id(m_id)
     { }
 
+    ~SpriteKey()
+    { }
+
     unsigned char extra_bits(void) const 
-    { return _extra_bits; }
+    {
+        return _extra_bits;
+    }
 
     void extra_bits(unsigned char eb)
-    { _extra_bits = eb & 3; }
+    {
+        _extra_bits = eb & 3;
+    }
     
-    // Could easily be inline... but this way I avoid having an extern declaration
-    // of size_table
+    // Could easily be inline... but this way I avoid having an extern declaration of size_table
     unsigned char get_data_size(void) const;
 
     unsigned char get_ext_size(void) const
-    { return get_data_size() - SPRITE_DEF_DATA_SIZE; }
+    {
+        return get_data_size() - SPRITE_DEF_DATA_SIZE;
+    }
 };
 
 
@@ -108,6 +116,9 @@ struct SpriteTile {
 
     SpriteTile(int xx, int yy, unsigned short tile)
         : x(xx), y(yy), map16tile(tile)
+    { }
+
+    ~SpriteTile()
     { }
 };
 
@@ -125,8 +136,21 @@ struct SpriteValue {
             ext_bytes[i] = 0;
     }
 
+    ~SpriteValue()
+    { }
+
     int add_tile_str(QString &tstr);
 };
+
+
+
+/* Operator functions */
+bool operator<(const SpriteKey &sk1, const SpriteKey &sk2);
+bool operator==(const SpriteKey &sk1, const SpriteKey &sk2);
+bool operator==(const SpriteTile &st1, const SpriteTile &st2);
+bool operator==(const SpriteValue &sv1, const SpriteValue &sv2);
+
+
 
 /* Function prototypes */
 
@@ -134,25 +158,18 @@ struct SpriteValue {
  * If the table doesn't exist, it fills the local size table with the default size. */
 void load_size_table(smw::ROM &rom);
 
-bool operator<(const SpriteKey &sk1, const SpriteKey &sk2);
-bool operator==(const SpriteKey &sk1, const SpriteKey &sk2);
-bool operator==(const SpriteTile &st1, const SpriteTile &st2);
-bool operator==(const SpriteValue &sv1, const SpriteValue &sv2);
-
 /* These functions are an interface to a user-implemented sprite container.
  * The sprite container in this case is a QMultiMap, but it could have been
  * anything that lets us reference a sprite using just its ID and extra bits.
  * Of note, QMultiMap was chosen so it allows us to store sprites with the
  * same ID and value, but with different extension bytes. */
-int sprite_insert(SpriteKey &key, SpriteValue &value);
-inline void remove_sprite(SpriteKey &key, SpriteValue &value);
-inline void remove_all_sprites(void);
+
 /* Gets a reference to each sprite value for a SpriteKey. If no sprite values were
  * found, it'll insert a new one for that key, then get a reference to it.
  * All the references are put in a vector. */
-void get_sprite_value(const SpriteKey &sk, QVector<SpriteValue *> &arr);
-void print_sprites(void);
-
+void get_sprite_values(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
+        const SpriteKey &sk, QVector<SpriteValue *> &arr);
+void print_sprites(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map);
 
 }
 
