@@ -11,6 +11,12 @@
 #include "asar_errors_small.h"
 #include "crc32.h"
 
+#define DEBUG
+
+#ifdef DEBUG
+#include <assert.h>
+#endif
+
 //#include "std-includes.h"
 //#include "autoarray.h"
 //#include "asar.h"
@@ -93,8 +99,8 @@ namespace smw {
 static int sa1banks[8]={0<<20, 1<<20, -1, -1, 2<<20, 3<<20, -1, -1};
 asar_errid openromerror;
 
-/* Opens a ROM. There's no need to allocate rom. filename should be a file 
- * name that includes the extension. confirm should controls whether to 
+/* Opens a ROM. There's no need to allocate rom. filename should be a full path
+ * to the rom file. confirm should controls whether to 
  * check for ROM header size and ROM header title. 
  * It might not be wise to set confirm to false. The checks done seem to
  * be buggy. 
@@ -102,52 +108,59 @@ asar_errid openromerror;
  * attributes.
  * Errors returned: errid_open_rom_failed, errid_open_rom_not_smw_extension,
  *                  errid_open_rom_not_smw_header */
-bool openrom(ROM *rom, const char * filename, bool confirm)
+
+#define HEADER_LEN 512
+#define ROM_DATA_LEN 16777216
+
+bool openrom(ROM *rom, const char *filename, bool confirm)
 {
     int truelen;
 
-	rom->file = fopen(filename, "r+b"); // Open file and return if errors
-	if (!(rom->file)) {
-		openromerror = errid_open_rom_failed;
-		return false;
-	}
+    // Open file and return if errors.
+    if (!rom || (rom->file = fopen(filename, "r+b")) == NULL) {
+        openromerror = errid_open_rom_failed;
+        return false;
+    }
 
-	rom->header = false;                // Find if rom has header
+    // Find if rom has header.
+	rom->header = false;
 	if (strlen(filename) > 4) {
         // Get ptr to extension. Assumes the extension is always 3 chars.
 		const char * fnameend = strchr(filename, '\0') - 4;
 		rom->header = (!STRCMP_NOCASE(fnameend, ".smc"));
 	}
 
-	fseek(rom->file, 0, SEEK_END);      // Get lenght of the rom
-	rom->lenght = ftell(rom->file) - (rom->header*512);
+    // Get lenght of the rom.
+	fseek(rom->file, 0, SEEK_END);
+	rom->lenght = ftell(rom->file) - (rom->header*HEADER_LEN);
 	if (rom->lenght < 0)
         rom->lenght = 0;
 
     // Move cursor to end of header (and start of data) and fill data
-	fseek(rom->file, rom->header*512, SEEK_SET); 
-	rom->data = (unsigned char*) malloc(sizeof(unsigned char)*16*1024*1024);
-    truelen = (int) fread(const_cast<unsigned char*>(rom->data), 1u, 
-                        (size_t) rom->lenght, rom->file);
+	fseek(rom->file, rom->header*HEADER_LEN, SEEK_SET); 
+	rom->data = (unsigned char*) malloc(sizeof(unsigned char)*ROM_DATA_LEN);    //16*1024*1024
+    truelen = (int) fread(const_cast<unsigned char*>(rom->data), 1u, (size_t) rom->lenght, rom->file);
 
-	if (truelen != rom->lenght) {     // Check for errors with lenght
+    // Check for errors with lenght
+	if (truelen != rom->lenght) {     
 		openromerror = errid_open_rom_failed;
 		free(const_cast<unsigned char*>(rom->data));
 		return false;
 	}
+
     //Fills area after romdata+romlenght with 0s 
-	memset(const_cast<unsigned char*>(rom->data)+rom->lenght, 0x00, 
-            (size_t) (16*1024*1024-rom->lenght));
+    memset(const_cast<unsigned char*>(rom->data)+rom->lenght, 0x00, (size_t) (ROM_DATA_LEN-rom->lenght));
+
+    // Get the mapper for the rom.
     findmapper(rom);
 
-    if (!confirm)   // Skip checks with lenghts and title if confirm = false
+    // Skip checks with lenghts and title if confirm = false
+    if (!confirm)   
         return true;
     
-    // Do a bunch of checks. I'm not entirely sure how the first one works,
-    // it appears to be buggy (tested against a real ROM, these checks return
-    // false).
-	if (snestopc(HEADER_START, rom->mapper)+21 < (int) rom->lenght && 
-        strncmp((const char*)rom->data + snestopc(HEADER_START, rom->mapper), SMWTITLE, TITLE_SIZE))
+    // Do some checks to see if this is a real SMW ROM.
+	if (snestopc(HEADER_START, rom)+21 < (int) rom->lenght && 
+        strncmp((const char*)rom->data + snestopc(HEADER_START, rom), SMWTITLE, TITLE_SIZE))
 	{
 		closerom(rom, false);
 		openromerror = rom->header ? errid_open_rom_not_smw_extension : errid_open_rom_not_smw_header;
@@ -157,37 +170,56 @@ bool openrom(ROM *rom, const char * filename, bool confirm)
 	return true;
 }
 
-/* Closes a rom. save does just what you'd expect. */
-uint32_t closerom(ROM *rom, bool save)
+static int saverom(ROM *rom, uint32_t *rom_crc)
 {
-	uint32_t romCrc = 0;
+    uint8_t *filedata;
 
-	if (rom->file && save && rom->lenght) {
-		fseek(rom->file, rom->header*512, SEEK_SET);
-		fwrite(const_cast<unsigned char*>(rom->data), 1, 
-                (size_t)rom->lenght, rom->file);
+    if (!rom || !rom->file || rom->lenght == 0 || !rom_crc)
+        return 1;
 
-		// do a quick re-read of the header, and include that in the 
-        // crc32 calculation if necessary
-        uint8_t* filedata = (uint8_t *) malloc(sizeof(uint8_t) * 
-                (rom->lenght + rom->header * 512));
-        if (rom->header) {
-            fseek(rom->file, 0, SEEK_SET);
-            fread(filedata, sizeof(uint8_t), 512, rom->file);
-        }
-        memcpy(filedata + (rom->header * 512), rom->data, sizeof(uint8_t) * (size_t)rom->lenght);
-        romCrc = crc32(filedata, (unsigned int) (rom->lenght + rom->header * 512));
-        free(filedata);
+    fseek(rom->file, rom->header*HEADER_LEN, SEEK_SET);
+    fwrite(const_cast<unsigned char*>(rom->data), 1, (size_t)rom->lenght, rom->file);
+    // do a quick re-read of the header, and include that in the crc32 calculation if necessary
+    filedata = (uint8_t *) malloc(sizeof(uint8_t) * rom->lenght + rom->header * HEADER_LEN);
+    if (!filedata)
+        return 1;
+    // write header
+    if (rom->header) {
+        fseek(rom->file, 0, SEEK_SET);
+        fread(filedata, sizeof(uint8_t), HEADER_LEN, rom->file);
+    }
+    memcpy(filedata + (rom->header * HEADER_LEN), rom->data, sizeof(uint8_t) * (size_t)rom->lenght);
+    *rom_crc = crc32(filedata, (unsigned int) (rom->lenght + rom->header * HEADER_LEN));
+    free(filedata);
+    
+    return 0;
+}
+
+/* Closes a rom. save does just what you'd expect. */
+int closerom(ROM *rom, bool save)
+{
+    uint32_t crc;
+    int err;
+
+    if (!rom || !rom->file) {
+        return 1;
+    }
+
+	if (save && rom->lenght) {
+        err = saverom(rom, &crc);
+        assert(err == 0);
 	}
-	if (rom->file)
-        fclose(rom->file);
+
+    fclose(rom->file);
 	if (rom->data)
         free(const_cast<unsigned char*>(rom->data));
 	rom->file = nullptr;
 	rom->data = nullptr;
 	rom->lenght = 0;
-	return romCrc;
+
+    return 0;
 }
+
 
 /* Finds the mapping mode of the ROM. The mapping mode is found
  * at $00FFD5, but since we'd have to have the mapping mode already
@@ -197,14 +229,14 @@ uint32_t closerom(ROM *rom, bool save)
  * later read to find any oddball mapping modes. */
 bool findmapper(ROM *rom)
 {
-	int maxscore = -99999;
+	int maxscore = -99999, score, mapperbyte, romtypebyte;
 	mapper_t bestmap = mapper_t::lorom;
-	mapper_t maps[] = { mapper_t::lorom, mapper_t::hirom, mapper_t::exlorom,
-        mapper_t::exhirom };
-    size_t mapid;
+	mapper_t maps[] = { mapper_t::lorom, mapper_t::hirom, mapper_t::exlorom, mapper_t::exhirom };
+    unsigned char mapid;
 
 	for (mapid=0; mapid < sizeof(maps)/sizeof(maps[0]); mapid++) {
-        int score = check_header(rom, maps[mapid]);
+        rom->mapper = maps[mapid];
+        score = check_header(rom);
         if (score > maxscore) { 
             maxscore = score;
             bestmap = rom->mapper;
@@ -213,8 +245,8 @@ bool findmapper(ROM *rom)
 	rom->mapper = bestmap;
 
 	//detect oddball mappers
-	int mapperbyte = rom->data[snestopc(0x00FFD5, rom->mapper)];
-	int romtypebyte = rom->data[snestopc(0x00FFD6, rom->mapper)];
+	mapperbyte = rom->data[snestopc(0x00FFD5, rom)];
+	romtypebyte = rom->data[snestopc(0x00FFD6, rom)];
 	if (rom->mapper == mapper_t::lorom)
 		if (mapperbyte == 0x23 && (romtypebyte == 0x32 || romtypebyte == 0x34 || romtypebyte == 0x35)) 
             rom->mapper = mapper_t::sa1rom;
@@ -223,7 +255,7 @@ bool findmapper(ROM *rom)
 }
 
 /* Checks the header, as explained above. */
-int check_header(ROM *rom, mapper_t mapper)
+int check_header(ROM *rom)
 {
     int score = 0;
     int highbits = 0;
@@ -231,7 +263,7 @@ int check_header(ROM *rom, mapper_t mapper)
     unsigned char c;
 
     for (int i = 0; i < TITLE_SIZE; i++) {
-        c = rom->data[snestopc(HEADER_START+i, mapper)];
+        c = rom->data[snestopc(HEADER_START+i, rom)];
         // according to some documents, NUL terminated names are possible 
         // - but they shouldn't appear in the middle of the name
         if (foundnull && c)
@@ -259,8 +291,8 @@ int check_header(ROM *rom, mapper_t mapper)
         score-=21;
 
     //checksum doesn't match up to 0xFFFF? Not a ROM.
-    if ((rom->data[snestopc(0x00FFDE, rom->mapper)] ^ rom->data[snestopc(0x00FFDC, rom->mapper)]) != 0xFF ||
-        (rom->data[snestopc(0x00FFDF, rom->mapper)] ^ rom->data[snestopc(0x00FFDD, rom->mapper)]) != 0xFF) 
+    if ((rom->data[snestopc(0x00FFDE, rom)] ^ rom->data[snestopc(0x00FFDC, rom)]) != 0xFF ||
+        (rom->data[snestopc(0x00FFDF, rom)] ^ rom->data[snestopc(0x00FFDD, rom)]) != 0xFF) 
         score = -99999;
 
     //too lazy to check the real checksum
@@ -268,12 +300,12 @@ int check_header(ROM *rom, mapper_t mapper)
 }
 
 /* Converts a SNES address to a PC address. */
-int snestopc(int addr, mapper_t rommapper)
+int snestopc(int addr, ROM *rom)
 {
     if (addr < 0 || addr > 0xFFFFFF)
         return -1; //not 24bit
     
-    switch (rommapper) {
+    switch (rom->mapper) {
     case mapper_t::invalid_mapper:
         return -1;
     case mapper_t::lorom:
@@ -338,12 +370,12 @@ int snestopc(int addr, mapper_t rommapper)
 }
 
 /* Converts a PC address to a SNES address. */
-int pctosnes(int addr, mapper_t rommapper)
+int pctosnes(int addr, ROM *rom)
 {
     if (addr < 0)
         return -1;
 
-    switch (rommapper) {
+    switch (rom->mapper) {
     case mapper_t::invalid_mapper:
         return -1;
     case mapper_t::lorom:

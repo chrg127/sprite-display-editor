@@ -1,6 +1,6 @@
 /* 
- * sprite.h: a library comprising of classes and structs for representing
- * sprites in Super Mario World.
+ * sprite.h: a library comprising of classes and structs for representing sprites in Super Mario World.
+ *
  * Sprites contain a big number of attributes: ID, extra bits, name, graphics,
  * etc... In this library, I've decided to limit them to what is useful in
  * this program, however it might be extended for other uses.

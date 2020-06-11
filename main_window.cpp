@@ -1,139 +1,141 @@
+//#define DEBUG
+
 #include "main_window.h"
 
-#include <QDebug>
-#include <QObject>
-#include <QWidget>
-#include <QApplication>
-#include <QMainWindow>
 #include <QMenuBar>
-#include <QMenu>
 #include <QAction>
-#include <QPushButton>
 #include <QLabel>
-#include <QListWidget>
 #include <QLineEdit>
-#include <QStatusBar>
-#include <QKeySequence>
+#include <QPushButton>
+#include <QListWidget>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QFormLayout>
 #include <QFileDialog>
-#include <QString>
-#include <QDir>
+
 #include "sprite.h"
+#include "tool.h"
 
-#define DEBUG
+#ifdef DEBUG
+#include <QDebug>
+#include <iostream>
+#endif
 
-MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent)
+MainWindow::MainWindow(Tool *tool, QWidget *parent)
+    : QMainWindow(parent), main_tool(tool), last_dir(QDir::homePath())
 {
-    setMinimumSize(500, 500);
-    resize(500, 500);
-    center_widget = new QWidget(this);
-    setCentralWidget(center_widget);
-    statusBar()->showMessage("Hello world!");
-    last_dir = QDir::homePath();
 
-    createmenu();
-    createbuttons();
-    createlabels();
-    createlistwidget();
-    createlineedits();
+
+    QVBoxLayout *mainlt      = new QVBoxLayout(center_widget); 
+    QHBoxLayout *label_lt    = new QHBoxLayout;
+    QFormLayout *edit_formlt = new QFormLayout;
+    QHBoxLayout *list_mainlt = new QHBoxLayout;
+    QHBoxLayout *button_mainlt = new QHBoxLayout;
+    
+    add_dialog = new AddSpriteDialog(this);
+
+    setMinimumWidth(250);
+
+    setCentralWidget(center_widget);
+    center_widget->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Maximum);
+
+    create_menu();
+    create_edit_zone(edit_formlt);
+    create_lists(list_mainlt);
+    create_buttons(button_mainlt);
+ 
+    label_lt->addWidget(romnamelabel);
+
+    mainlt->addLayout(label_lt);
+    mainlt->addWidget(romnamelabel);
+    mainlt->addLayout(list_mainlt);
+    mainlt->addLayout(edit_formlt);
+    mainlt->addLayout(button_mainlt);
+    mainlt->addWidget(addspritebtn, 0, Qt::AlignHCenter);
 }
 
-void MainWindow::createmenu(void)
+void MainWindow::create_menu(void)
 {
+    QMenu *menu;
     QAction *act;
 
-    filemenu = menuBar()->addMenu("&File");
+    menu = menuBar()->addMenu("&File");
     act = new QAction("&Open", this);
     connect(act, &QAction::triggered, this, &MainWindow::open_file);
-    filemenu->addAction(act);
-    aboutmenu = menuBar()->addMenu("&About");
+    menu->addAction(act);
+    menu = menuBar()->addMenu("&About");
 }
 
-void MainWindow::createbuttons(void)
+void MainWindow::create_edit_zone(QFormLayout *flt)
 {
-    addspritebtn = new QPushButton("Add new sprite", center_widget);
-    moveupbtn    = new QPushButton("Move up",        center_widget);
-    movedownbtn  = new QPushButton("Move down",      center_widget);
-    editlookbtn  = new QPushButton("Edit look",      center_widget);
+    flt->addRow(namelabel, namebox);
+    flt->addRow(idlabel, idbox);
+    flt->addRow(tiplabel, tipbox);
+}
 
-    addspritebtn->setGeometry(190, 400, 120, 30);
-    moveupbtn->setGeometry(25, 335, 40, 30);
-    movedownbtn->setGeometry(70, 335, 40, 30);
-    editlookbtn->setGeometry(0, 0, 0, 0);
-
+void MainWindow::create_buttons(QHBoxLayout *lt)
+{
+    editlookbtn->setToolTip("Edit the graphics used by the selected sprite.");
     addspritebtn->setToolTip("Adds sprites.");
-    moveupbtn->setToolTip("Moves a sprite up in the list.");
-    movedownbtn->setToolTip("Moves a sprite down in the list.");
-    editlookbtn->setToolTip("Edit the graphics used by the sprite.");
+    removespritebtn->setToolTip("Removes the selected sprite.");
+    lt->addWidget(editlookbtn, 0, Qt::AlignHCenter);
+    lt->addWidget(removespritebtn, 0, Qt::AlignHCenter);
+    connect(editlookbtn, &QAbstractButton::clicked, this, &MainWindow::edit_look);
+    connect(addspritebtn, &QAbstractButton::clicked, this, &MainWindow::add_new_sprite);
+    connect(removespritebtn, &QAbstractButton::clicked, this, &MainWindow::remove_sprite);
 }
 
-void MainWindow::createlabels(void)
+void MainWindow::create_lists(QHBoxLayout *lt)
 {
-    namelabel = new QLabel("Sprite name: ",    center_widget);
-    cmdlabel  = new QLabel("Sprite command: ", center_widget);
-    tiplabel  = new QLabel("Sprite tooltip: ", center_widget);
-    romnamelabel = new QLabel("ROM name: ",    center_widget);
-
-    namelabel->setGeometry(135, 45, 120, 30);
-    cmdlabel->setGeometry(135, 65, 120, 30);
-    tiplabel->setGeometry(135, 105, 120, 30);
-    romnamelabel->setGeometry(25, 10, 150, 30);
+    lt->addWidget(filled_sprite_list);
+    lt->addWidget(unfilled_sprite_list);
 }
 
-void MainWindow::createlistwidget(void)
+MainWindow::~MainWindow()
 {
-    spritelistwidget = new QListWidget(center_widget);
-    spritelistwidget->setGeometry(25, 45, 100, 300);
-}
-
-void MainWindow::createlineedits(void)
-{
-    namebox = new QLineEdit(center_widget);
-    cmdbox  = new QLineEdit(center_widget);
-    tipbox  = new QLineEdit(center_widget);
-
-    namebox->setGeometry(265, 25, 120, 30);
-    cmdbox->setGeometry(265, 65, 120, 30);
-    tipbox->setGeometry(265, 105, 120, 30);
+    main_tool->close();
 }
 
 
 
-/* ************ Slots ************
- * open_file: opens the 4 files associated to the ROM and creates the sprite list
- * close_file: clears the sprite list (and associated widgets). doesn't save anything.
- * save_file: saves everything to files
- */
+/* ************ Slots ************ */
 void MainWindow::open_file(bool checked)
 {
-    QString name;
+    QString name, name_noext, errors;
+    int err;
 
     name = QFileDialog::getOpenFileName(this, "Open Image", last_dir, 
             "SNES ROM files (*.smc *.sfc)");
-#ifdef DEBUG
-    qDebug() << "filename: " << name;
-#endif
     if (name == "")
         return;
+    name_noext = name.split(".", QString::SkipEmptyParts).at(0);
+#ifdef DEBUG
+    qDebug() << "filename: " << name;
+    qDebug() << name_noext;
+#endif
     
     romnamelabel->setText("ROM name: " + QFileInfo(name).fileName());
     last_dir = name;
-
-    /*spritelist = get_sprite_list();
-    if ((*spritelist).size() == 0) {
-        //QMessageBox::critical(this, "No sprite found."
-        return;
-    }
-
-    for (auto &s : *spritelist)
-        spritelistwidget->addItem(s.name);*/
+    err = main_tool->open(name_noext, errors);
+#ifdef DEBUG
+    qDebug() << "received:" << err;
+    qDebug() << errors;
+#endif
 }
 
-void MainWindow::close_file(bool checked)
+void MainWindow::add_new_sprite(bool checked)
 {
+    qDebug() << "Selected \"add sprite\" button";
+    add_dialog->exec();
 }
 
-void MainWindow::save_file(bool checked)
+void MainWindow::remove_sprite(bool checked)
 {
+    qDebug() << "Selected \"remove sprite\" button";
+}
+
+void MainWindow::edit_look(bool checked)
+{
+    qDebug() << "Selected \"edit look\" button";
 }
 

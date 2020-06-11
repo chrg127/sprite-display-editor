@@ -7,15 +7,14 @@
 
 namespace sprite {
 
+
+
 /* This is a lookup table for sprite sizes. It is effectively a copy of the 
  * real table in the ROM. It is worth noting that due to static initialization,
  * this array will always be initializated with 0s, instead of default value 3.
  * This is intentional, and can be used to check if sprite size have been
  * loaded or not. */
 static unsigned char _size_table[SPRITE_SIZE_TABLE_MAX];
-
-/* The main data structure for sprites, should only be accessible from here. */
-//static QMultiMap<SpriteKey, SpriteValue> sprite_map;
 
 
 
@@ -80,22 +79,21 @@ bool operator==(const SpriteValue &sv1, const SpriteValue &sv2)
 
 
 
-
 void load_size_table(smw::ROM &rom)
 {
     unsigned int addr, pc_addr;
     int i;
     
     // Check if the table exists
-    if (rom.data[smw::snestopc(0x0EF30F, rom.mapper)] != 0x42) {
+    if (rom.data[smw::snestopc(0x0EF30F, &rom)] != 0x42) {
         std::memset(_size_table, SPRITE_DEF_DATA_SIZE, SPRITE_SIZE_TABLE_MAX);
         return;
     }
     // Build table address and copy table
-    addr = rom.data[smw::snestopc(0x0EF30E, rom.mapper)] << 16;
-    addr |= rom.data[smw::snestopc(0x0EF30D, rom.mapper)] << 8;
-    addr |= rom.data[smw::snestopc(0x0EF30C, rom.mapper)];
-    pc_addr = smw::snestopc(addr, rom.mapper);
+    addr = rom.data[smw::snestopc(0x0EF30E, &rom)] << 16;
+    addr |= rom.data[smw::snestopc(0x0EF30D, &rom)] << 8;
+    addr |= rom.data[smw::snestopc(0x0EF30C, &rom)];
+    pc_addr = smw::snestopc(addr, &rom);
     i = 0;
     while (i != SPRITE_SIZE_TABLE_MAX)
         _size_table[i++] = rom.data[pc_addr++];
@@ -128,8 +126,6 @@ void print_sprites(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map
     int i;
 
     for (it = sprite_map.begin(); it != sprite_map.end(); it++) {
-        if (it.value().tiles.size() != 0) 
-            continue;
         qDebug() << "ID:" << it.key().id << "extra bits:" << it.key().extra_bits()
                  << "Name:" << it.value().name;
         qDebug() << "Tooltip:" << it.value().tooltip;

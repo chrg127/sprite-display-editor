@@ -6,15 +6,19 @@ QT = core gui
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 SOURCES += main_window.cpp \
-           sprite.cpp \
+           dialogs.cpp \
            tool.cpp \
+           sprite.cpp \
+           sprite_files.cpp \
            ext/libsmw.cpp \
            ext/crc32.cpp \
            main.cpp
 
 HEADERS += main_window.h \
-           sprite.h \
+           dialogs.h \
            tool.h \
+           sprite.h \
+           sprite_files.h \
            ext/libsmw.h \
            ext/crc32.h \
            ext/asar_errors_small.h

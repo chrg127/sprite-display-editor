@@ -1,0 +1,92 @@
+/* This is a library for reading and writing "Lunar Magic files", in particular the
+ * mw2, mwt and ssc files. */
+
+/*
+ * Lunar Magic provides a way to use custom sprites without using the insert manual:
+ * simply place the custom sprite in the first screen of a level and press Ctrl-Alt-F12.
+ * When inserting a custom sprite this way, it will generate two files:
+ *  - A .mw2 file, containing binary sprite data;
+ *  - A .mwt file, containing the name assigned to the sprite.
+ * Additionally, two other files can be used: 
+ *  - A .ssc file, which will contain sprite tooltips
+ *  - A .s16 file containing map16 data used by sprites.
+ */
+
+/* 
+ * I'll describe each file's format here.
+ * 
+ * The mw2 file format is the same as the sprite data in a SMW level. The
+ * first byte consists of sprite data header, which should always be 00.
+ * Next is the list of all sprites. Each sprite is usually composed of 3 bytes:
+ * yyyyEESY XXXXssss NNNNNNNN
+ * yyyy - Y position
+ * EE - Extra bits
+ * XXXX - X position
+ * ssss - Screen number
+ * NNNNNNNN - Sprite ID (or command)
+ * Last byte: end of data. Should be 0xFF.
+ * The sprite data, however, can change depending on the size of the sprite. If the
+ * sprite size is > 3, then any other byte after the first 3 are "extension bytes".
+ * Example:
+ *
+ */
+
+/* 
+ * The mwt format is really simple: Each line is the name of the sprite (yes, including the sprite ID). 
+ * These are used when...
+ */
+
+/*
+ * The ssc format is a text format containing lines formatted like this:
+ *   (sprite id)(space)(extra bits and line type)(space)(rest of line, either describing tooltip or sprite tiles)
+ * Example:
+ *   04  20  A normal thwomp.
+ *   04  22  0,0,34  0,16,44  16,0,35  16,16,45
+ * The second column indicates whether the line contains a tooltip or sprite tiles:
+ *   - If the last digit == 0, then the line contains a tooltip;
+ *   - If it's == 2, then it contains sprite tiles;
+ * This feature was presumabily made so that it could later be extended.
+ */
+
+#ifndef _SPRITE_FILES_H
+#define _SPRITE_FILES_H
+
+#include "sprite.h"
+#include "ext/libsmw.h"
+
+template<typename K, typename V> class QMultiMap;
+class QString;
+
+//namespace romutils {
+
+/* Simultaneously reads both the mw2 file and mwt file and returns the following error codes:
+ *  - 1: The mw2 or mwt file does not exist (or can't open). In this case, it is best not to continue;
+ *  - 2: The mw2 file has a bad format;
+ *  - 3: The mwt file is longer than the mw2 file (I.E. has more lines and more possible information);
+ *  - 4: The mw2 file is longer than the mwt file. In this case, all information found in the mw2 file should be kept;
+ * Because reading the mwt file by itself would not really provide any information on with what sprite to associated 
+ * each name, it is better to read sprite bytes and name simultaneously. This function also inserts sprites in the
+ * global sprite structure; therefore, make sure to call load_size_table before calling this function, and, if
+ * a fatal error is found, to clear the sprite structure. */
+int mw2_mwt_readfile(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
+        const QString &romname);
+
+/* Reads the ssc file and updates the sprites. Returns 1 on format error. */
+int ssc_readfile(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
+        const QString &romname);
+
+/* Writes information about all sprites contained in sprite_map to mw2 file.
+ * Returns 1 if it couldn't open the file. */
+int mw2_writefile(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
+        const QString &outname);
+
+/* Writes to the mwt file. Returns 1 for file error. */
+int mwt_writefile(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
+        const QString &outname);
+
+/* Writes to the ssc file. Returns 1 for file error. */
+int ssc_writefile(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
+        const QString &outname);
+//}
+    
+#endif

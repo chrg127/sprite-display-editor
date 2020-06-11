@@ -46,32 +46,32 @@ struct ROM {
     mapper_t mapper;
     bool header;
 
-    ROM()
+    /*ROM()
     {
         file = nullptr;
         data = nullptr;
         lenght = 0;
         mapper = mapper_t::lorom;
         header = false;
-    }
-
+    }*/
+/*
     ~ROM()
     {
         if (file)
             fclose(file);
         if (data)
             free((void *)data);
-    }
+    }*/
 };
 
 bool openrom(ROM *rom, const char * filename, bool confirm=true);
-uint32_t closerom(ROM *rom, bool save = true);
+int closerom(ROM *rom, bool save = true);
 
 bool findmapper(ROM *rom);
-int check_header(ROM *rom, mapper_t mapper);
+int check_header(ROM *rom);
 
-int snestopc(int addr, mapper_t rommapper);
-int pctosnes(int addr, mapper_t rommapper);
+int snestopc(int addr, ROM *rom);
+int pctosnes(int addr, ROM *rom);
 
 }
 /*
