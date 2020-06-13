@@ -66,6 +66,7 @@ struct ROM {
 
 bool openrom(ROM *rom, const char * filename, bool confirm=true);
 int closerom(ROM *rom, bool save = true);
+uint32_t get_rom_crc(ROM *rom);
 
 bool findmapper(ROM *rom);
 int check_header(ROM *rom);

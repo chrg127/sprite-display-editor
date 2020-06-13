@@ -31,7 +31,7 @@
  *
  */
 
-/* 
+/*
  * The mwt format is really simple: Each line is the name of the sprite (yes, including the sprite ID). 
  * These are used when...
  */
@@ -51,42 +51,31 @@
 #ifndef _SPRITE_FILES_H
 #define _SPRITE_FILES_H
 
+#include <QMultiMap>
 #include "sprite.h"
 #include "ext/libsmw.h"
 
-template<typename K, typename V> class QMultiMap;
 class QString;
 
-//namespace romutils {
-
 /* Simultaneously reads both the mw2 file and mwt file and returns the following error codes:
- *  - 1: The mw2 or mwt file does not exist (or can't open). In this case, it is best not to continue;
+ *  - 1: The mw2 or mwt file does not exist (or can't open).
  *  - 2: The mw2 file has a bad format;
  *  - 3: The mwt file is longer than the mw2 file (I.E. has more lines and more possible information);
  *  - 4: The mw2 file is longer than the mwt file. In this case, all information found in the mw2 file should be kept;
- * Because reading the mwt file by itself would not really provide any information on with what sprite to associated 
- * each name, it is better to read sprite bytes and name simultaneously. This function also inserts sprites in the
- * global sprite structure; therefore, make sure to call load_size_table before calling this function, and, if
- * a fatal error is found, to clear the sprite structure. */
-int mw2_mwt_readfile(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
-        const QString &romname);
+ * This function also inserts sprites in the global sprite structure; therefore, make sure to call "load_size_table"
+ * before calling this function, and, if a fatal error is found, to clear the sprite structure. */
+int mw2_mwt_readfile(sprite::SpriteMap &spmap, const QString &romname);
 
 /* Reads the ssc file and updates the sprites. Returns 1 on format error. */
-int ssc_readfile(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
-        const QString &romname);
+int ssc_readfile(sprite::SpriteMap &spmap, const QString &romname);
 
-/* Writes information about all sprites contained in sprite_map to mw2 file.
- * Returns 1 if it couldn't open the file. */
-int mw2_writefile(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
-        const QString &outname);
+/* Writes to the mw2 file. Returns 1 for file error. */
+int mw2_writefile(sprite::SpriteMap &spmap, const QString &romname);
 
 /* Writes to the mwt file. Returns 1 for file error. */
-int mwt_writefile(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
-        const QString &outname);
+int mwt_writefile(sprite::SpriteMap &spmap, const QString &romname);
 
 /* Writes to the ssc file. Returns 1 for file error. */
-int ssc_writefile(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
-        const QString &outname);
-//}
-    
+int ssc_writefile(sprite::SpriteMap &spmap, const QString &romname);
+
 #endif

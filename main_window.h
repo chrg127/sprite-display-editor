@@ -6,8 +6,8 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QListWidget>
-#include "tool.h"
 #include "sprite.h"
+#include "tool.h"
 #include "dialogs.h"
 
 class QString;
@@ -35,8 +35,8 @@ private:
     QPushButton *removespritebtn    = new QPushButton("Remove sprite");;
     QListWidget *filled_sprite_list     = new QListWidget;
     QListWidget *unfilled_sprite_list   = new QListWidget;
-    
-    AddSpriteDialog *add_dialog;
+
+    AddSpriteDialog *add_dialog = new AddSpriteDialog(this);
 
     void create_menu(void);
     void create_edit_zone(QFormLayout *flt);
@@ -52,6 +52,7 @@ public slots:
     void add_new_sprite(bool checked);
     void remove_sprite(bool checked);
     void edit_look(bool checked);
+    //void btadd_func(bool checked);
 };
 
 #endif

@@ -1,22 +1,22 @@
+#define DEBUG
+
 #include "sprite_files.h"
 
 #include <QFile>
 #include <QIODevice>
 #include <QTextStream>
 #include <QDataStream>
-#include <QDebug>
 #include <QStringList>
 #include <QtGlobal>
+#include "sprite.h"
 #include "ext/libsmw.h"
 #include "ext/asar_errors_small.h"
-#include "sprite.h"
 
 #ifdef DEBUG
+#include <QDebug>
 #include <iostream>
 #include <iomanip>
 #endif
-
-//namespace romutils {
 
 /*
  * This function reads bytes from the stream and parses them. It will first read 3 bytes,
@@ -28,7 +28,7 @@
  * This is how you get the other fields, for anyone insterested:
  * ypos = ((read_bytes[0] & 0xF0) >> 4) | ((read_bytes[0] & 1) << 4);
  * xpos = (read_bytes[1] & 0xF0) >> 4;
- * screennum = (read_bytes[1] & 0xF) | ((read_bytes[0] & 2) << 3); 
+ * screennum = (read_bytes[1] & 0xF) | ((read_bytes[0] & 2) << 3);
  *
  * Returns 1 for error, 2 for end of data byte. */
 static int mw2_parse(QDataStream &mw2stream, sprite::SpriteKey &spk,
@@ -71,32 +71,75 @@ static int mw2_parse(QDataStream &mw2stream, sprite::SpriteKey &spk,
     return 0;
 }
 
-/* This function parses a single line from the mwt file. It essentially provides better error checking,
- * since LM does not check if the IDs written in the mwt file and what's in the mw2 file match (for example,
- * one could have a custom sprite with ID 0A and write that this is a sprite with ID 05). If one wants to check
- * if two sprites don't have matching IDs in the mw2 and mwt file, he may use this function.
- * It'll return 2 if it finds an ID and -1 if the stream is at end. */
+/* Parses a single line from the .mwt file and does format error checking.
+ * Returns 1 if the stream is at end, 2 for format error. (not used in the program) */
 static int mwt_parse(QTextStream &mwtstream, unsigned char &id, QString &name)
 {
     QString first_word, rest_of_line = "";
     bool ok = false;
     
     if (mwtstream.atEnd())
-        return -1;
+        return 1;
     mwtstream >> first_word;
     id = first_word.toInt(&ok, 16);
     rest_of_line = mwtstream.readLine().trimmed();
     if (ok) {
         name = rest_of_line.trimmed();
-        return 1;
+        return 2;
     }
     first_word += rest_of_line.trimmed();
     name = first_word.trimmed();
     return 0;
 }
 
-int mw2_mwt_readfile(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
-        const QString &romname)
+/* Parses a single line from the ssc file and updates the sprite accordingly.
+ * Returns 1 on error. */
+static int ssc_parse(QTextStream &sscstream, sprite::SpriteMap &spmap)
+{
+    QString word, ebword, tooltip;
+    QStringList tilelist;
+    int line_type, i, j;
+    bool ok;
+    sprite::SpriteKey sk;
+    unsigned char eb;
+    QVector<sprite::SpriteValue *> svarr;
+
+    if (sscstream.atEnd())
+        return 1;
+    sscstream >> word >> ebword;
+    sk.id = word.toInt(&ok, 16);
+    eb = ebword.toInt(&ok);
+    if (!ok)
+        return 1;
+    line_type = eb % 10;
+    sk.extra_bits(eb/10);
+
+    sprite::get_sprite_values(spmap, sk, svarr);
+
+    if (line_type == 0) {
+        tooltip = sscstream.readLine().trimmed();
+        for (i = 0; i < svarr.size(); i++)
+            svarr[i]->tooltip = tooltip;
+        return 0;
+    } else if (line_type == 2) {
+        tilelist = sscstream.readLine().trimmed().split(' ', QString::SkipEmptyParts);
+        for (i = 0; i < svarr.size(); i++) {
+            for (j = 0; j < tilelist.size(); j++) {
+                int err = svarr[i]->add_tile_str(tilelist[j]);
+#ifdef DEBUG
+                if (err == 1)
+                    qDebug() << "Problem adding tile string. ID:" << sk.id << "extra bits:" << sk.extra_bits();
+#endif
+            }
+        }
+        return 0;
+    }
+    return 1;
+}
+
+
+
+int mw2_mwt_readfile(sprite::SpriteMap &spmap, const QString &romname)
 {
     QFile mw2file(romname + ".mw2"), mwtfile(romname + ".mwt");
     QDataStream mw2stream;
@@ -140,8 +183,8 @@ int mw2_mwt_readfile(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_m
         else
             ret = 4;
 
-        if (!sprite_map.contains(spk, spv))
-            sprite_map.insert(spk, spv);
+        if (!spmap.contains(spk, spv))
+            spmap.insert(spk, spv);
 
         spv.name = "";
     }
@@ -171,59 +214,12 @@ cleanup:
     return 0;
 }
 
-/* Parses a single line from the ssc file and updates the sprite accordingly.
- * Returns 1 on error. */
-static int ssc_parse(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
-        QTextStream &sscstream)
-{
-    QString word, ebword, tooltip;
-    QStringList tilelist;
-    int line_type, i, j;
-    bool ok;
-    sprite::SpriteKey sk;
-    unsigned char eb;
-    QVector<sprite::SpriteValue *> svarr;
-    
-    if (sscstream.atEnd())
-        return 1;
-    sscstream >> word >> ebword;
-    sk.id = word.toInt(&ok, 16);
-    eb = ebword.toInt(&ok);
-    if (!ok)
-        return 1;
-    line_type = eb % 10;
-    sk.extra_bits(eb/10);
-
-    sprite::get_sprite_values(sprite_map, sk, svarr);
-
-    if (line_type == 0) {
-        tooltip = sscstream.readLine().trimmed();
-        for (i = 0; i < svarr.size(); i++)
-            svarr[i]->tooltip = tooltip;
-        return 0;
-    } else if (line_type == 2) {
-        tilelist = sscstream.readLine().trimmed().split(' ', QString::SkipEmptyParts);
-        for (i = 0; i < svarr.size(); i++) {
-            for (j = 0; j < tilelist.size(); j++) {
-                int err = svarr[i]->add_tile_str(tilelist[j]);
-#ifdef DEBUG
-                if (err == 1)
-                    qDebug() << "Problem adding tile string. ID:" << sk.id << "extra bits:" << sk.extra_bits();
-#endif
-            }
-        }
-        return 0;
-    }
-    return 1;
-}
-
-int ssc_readfile(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
-        const QString &romname)
+int ssc_readfile(sprite::SpriteMap &spmap, const QString &romname)
 {
     QFile sscfile(romname + ".ssc");
     QTextStream sscstream;
     int parseret;
- 
+
     if (!sscfile.exists())
         return 2;
     if (!sscfile.open(QIODevice::ReadOnly | QIODevice::Text))
@@ -231,7 +227,7 @@ int ssc_readfile(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
     
     sscstream.setDevice(&sscfile);
     while (!sscstream.atEnd()) {
-        parseret = ssc_parse(sprite_map, sscstream);
+        parseret = ssc_parse(sscstream, spmap);
         if (parseret == 1) {
 #ifdef DEBUG
             qDebug() << "ERROR: Bad format.";
@@ -244,23 +240,22 @@ int ssc_readfile(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
     return 0;
 }
 
-int mw2_writefile(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
-        const QString &outname)
+int mw2_writefile(sprite::SpriteMap &spmap, const QString &outname)
 {
     QFile mw2file(outname + ".mw2");
     QDataStream mw2stream;
     char buf[SPRITE_MAX_DATA_SIZE];
     unsigned int len, i;
-    
+
     if (!mw2file.open(QIODevice::WriteOnly))
         return 1;
     mw2stream.setDevice(&mw2file);
-    
+
     buf[0] = 0;
     len = 1;
     mw2stream.writeRawData(buf, len);
- 
-    for (auto it = sprite_map.begin(); it != sprite_map.end(); it++) {
+
+    for (auto it = spmap.begin(); it != spmap.end(); it++) {
         buf[0] = it.key().extra_bits() << 2;
         buf[1] = 0;
         buf[2] = it.key().id;
@@ -270,23 +265,21 @@ int mw2_writefile(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
         buf[len] = 0;
         mw2stream.writeRawData(buf, len);
     }
- 
     buf[0] = 0xFF;
     len = 1;
     mw2stream.writeRawData(buf, len);
     return 0;
 }
 
-int mwt_writefile(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
-        const QString &outname)
+int mwt_writefile(sprite::SpriteMap &spmap, const QString &outname)
 {
     QFile mwtfile(outname + ".mwt");
     QTextStream mwtstream;
-    
+
     if (!mwtfile.open(QIODevice::WriteOnly | QIODevice::Text))
         return 1;
     mwtstream.setDevice(&mwtfile);
-    for (auto it = sprite_map.begin(); it != sprite_map.end(); it++) {
+    for (auto it = spmap.begin(); it != spmap.end(); it++) {
         if (it.value().name == "")
             continue;
         mwtstream << (it.value().name) << '\n';
@@ -296,8 +289,7 @@ int mwt_writefile(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
     return 0;
 }
 
-int ssc_writefile(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
-        const QString &outname)
+int ssc_writefile(sprite::SpriteMap &spmap, const QString &outname)
 {
     QFile sscfile(outname + ".ssc");
     QTextStream sscstream;
@@ -306,9 +298,8 @@ int ssc_writefile(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
     if (!sscfile.open(QIODevice::WriteOnly | QIODevice::Text))
         return 1;
     sscstream.setDevice(&sscfile);
-    
     line_type = 0;
-    for (auto it = sprite_map.begin(); it != sprite_map.end(); it++) {
+    for (auto it = spmap.begin(); it != spmap.end(); it++) {
         if (it.value().tooltip == "")
             continue;
         sscstream << QString("%1").arg(it.key().id, 2, 16, QChar('0')).toUpper() << '\t';
@@ -316,7 +307,7 @@ int ssc_writefile(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
         sscstream << it.value().tooltip << '\n';
     }
     line_type = 2;
-    for (auto it = sprite_map.begin(); it != sprite_map.end(); it++) {
+    for (auto it = spmap.begin(); it != spmap.end(); it++) {
         if (it.value().tiles.size() == 0)
             continue;
         sscstream << QString("%1").arg(it.key().id, 2, 16, QChar('0')).toUpper() << '\t';
@@ -327,10 +318,8 @@ int ssc_writefile(QMultiMap<sprite::SpriteKey, sprite::SpriteValue> &sprite_map,
         }
         sscstream << '\n';
     }
-        
+
     sscfile.close();
     return 0;
 }
-
-//}
 

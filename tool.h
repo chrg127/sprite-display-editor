@@ -1,11 +1,9 @@
 #ifndef _TOOL_H_
 #define _TOOL_H_
 
-#include <QDir>
+#include <QObject>
 #include "sprite.h"
 #include "ext/libsmw.h"
-
-template<class K, class V> class QMultiMap;
 
 /* What is this:
  * This is a half-assed implementation of a Singleton, which means it should be a class with only
@@ -14,12 +12,15 @@ template<class K, class V> class QMultiMap;
  * What this actually does:
  * Maintains the state for one ROM "buffer". Or in other words: the rom struct and the sprite list
  * is maintained here, in what should be a safe place (although it isn't technically safe yet). */
-class Tool {
-public:
-    QMultiMap<sprite::SpriteKey, sprite::SpriteValue> sprite_map;
+class Tool : public QObject {
+private:
+    sprite::SpriteMap _sprite_map;
     smw::ROM main_rom;
     QString rom_filename;
-    
+    bool not_open = true;
+    bool unsaved = false;
+
+public:
     /* libsmw doesn't have any ROM initialization by design. So let's do it here. (if it happens
      * to be more cumbersome down the line, I'll just add a constructor for the ROM). */
     Tool()
@@ -31,11 +32,20 @@ public:
         main_rom.header = false;
     }
 
-    ~Tool() { }
+    ~Tool()
+    {
+        close();
+    }
+
+    const sprite::SpriteMap &sprite_map(void) const
+    {
+        return _sprite_map;
+    }
 
     int open(const QString &rompath, QString &errors);
-    int save(void);
-    int close(void);
+    void close(void);
+/*  int save(void);
+    void add_sprite(const sprite::SpriteKey &sk, const sprite::SpriteValue &sv);*/
 };
 
 #endif

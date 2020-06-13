@@ -126,8 +126,8 @@ bool openrom(ROM *rom, const char *filename, bool confirm)
 	rom->header = false;
 	if (strlen(filename) > 4) {
         // Get ptr to extension. Assumes the extension is always 3 chars.
-		const char * fnameend = strchr(filename, '\0') - 4;
-		rom->header = (!STRCMP_NOCASE(fnameend, ".smc"));
+		//const char * fnameend = strchr(filename, '\0') - 4;
+		rom->header = (!STRCMP_NOCASE(filename + strlen(filename) - 4, ".smc"));
 	}
 
     // Get lenght of the rom.
@@ -157,7 +157,7 @@ bool openrom(ROM *rom, const char *filename, bool confirm)
     // Skip checks with lenghts and title if confirm = false
     if (!confirm)   
         return true;
-    
+
     // Do some checks to see if this is a real SMW ROM.
 	if (snestopc(HEADER_START, rom)+21 < (int) rom->lenght && 
         strncmp((const char*)rom->data + snestopc(HEADER_START, rom), SMWTITLE, TITLE_SIZE))
@@ -170,35 +170,28 @@ bool openrom(ROM *rom, const char *filename, bool confirm)
 	return true;
 }
 
-static int saverom(ROM *rom, uint32_t *rom_crc)
+uint32_t get_rom_crc(ROM *rom)
 {
+    uint32_t rom_crc;
     uint8_t *filedata;
 
-    if (!rom || !rom->file || rom->lenght == 0 || !rom_crc)
+    if (!rom || !rom->file || rom->lenght == 0)
         return 1;
-
-    fseek(rom->file, rom->header*HEADER_LEN, SEEK_SET);
-    fwrite(const_cast<unsigned char*>(rom->data), 1, (size_t)rom->lenght, rom->file);
-    // do a quick re-read of the header, and include that in the crc32 calculation if necessary
-    filedata = (uint8_t *) malloc(sizeof(uint8_t) * rom->lenght + rom->header * HEADER_LEN);
-    if (!filedata)
-        return 1;
-    // write header
+    filedata = (uint8_t *) malloc(rom->lenght*sizeof(uint8_t) + rom->header*HEADER_LEN);
     if (rom->header) {
         fseek(rom->file, 0, SEEK_SET);
         fread(filedata, sizeof(uint8_t), HEADER_LEN, rom->file);
     }
     memcpy(filedata + (rom->header * HEADER_LEN), rom->data, sizeof(uint8_t) * (size_t)rom->lenght);
-    *rom_crc = crc32(filedata, (unsigned int) (rom->lenght + rom->header * HEADER_LEN));
+    rom_crc = crc32(filedata, (unsigned int) (rom->lenght + rom->header * HEADER_LEN));
     free(filedata);
-    
-    return 0;
+
+    return rom_crc;
 }
 
 /* Closes a rom. save does just what you'd expect. */
 int closerom(ROM *rom, bool save)
 {
-    uint32_t crc;
     int err;
 
     if (!rom || !rom->file) {
@@ -206,10 +199,9 @@ int closerom(ROM *rom, bool save)
     }
 
 	if (save && rom->lenght) {
-        err = saverom(rom, &crc);
-        assert(err == 0);
+        fseek(rom->file, rom->header*HEADER_LEN, SEEK_SET);
+        fwrite(const_cast<unsigned char*>(rom->data), 1, (size_t)rom->lenght, rom->file);
 	}
-
     fclose(rom->file);
 	if (rom->data)
         free(const_cast<unsigned char*>(rom->data));
@@ -219,7 +211,6 @@ int closerom(ROM *rom, bool save)
 
     return 0;
 }
-
 
 /* Finds the mapping mode of the ROM. The mapping mode is found
  * at $00FFD5, but since we'd have to have the mapping mode already
