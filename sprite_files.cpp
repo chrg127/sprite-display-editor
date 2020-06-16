@@ -1,16 +1,12 @@
-#define DEBUG
+//#define DEBUG
 
 #include "sprite_files.h"
 
 #include <QFile>
-#include <QIODevice>
 #include <QTextStream>
 #include <QDataStream>
 #include <QStringList>
-#include <QtGlobal>
-#include "sprite.h"
 #include "ext/libsmw.h"
-#include "ext/asar_errors_small.h"
 
 #ifdef DEBUG
 #include <QDebug>
@@ -114,7 +110,7 @@ static int ssc_parse(QTextStream &sscstream, sprite::SpriteMap &spmap)
     line_type = eb % 10;
     sk.extra_bits(eb/10);
 
-    sprite::get_sprite_values(spmap, sk, svarr);
+    sprite::get_values(spmap, sk, svarr);
 
     if (line_type == 0) {
         tooltip = sscstream.readLine().trimmed();
@@ -125,7 +121,7 @@ static int ssc_parse(QTextStream &sscstream, sprite::SpriteMap &spmap)
         tilelist = sscstream.readLine().trimmed().split(' ', QString::SkipEmptyParts);
         for (i = 0; i < svarr.size(); i++) {
             for (j = 0; j < tilelist.size(); j++) {
-                int err = svarr[i]->add_tile_str(tilelist[j]);
+                int err = svarr[i]->string2tile(tilelist[j]);
 #ifdef DEBUG
                 if (err == 1)
                     qDebug() << "Problem adding tile string. ID:" << sk.id << "extra bits:" << sk.extra_bits();
@@ -175,7 +171,7 @@ int mw2_mwt_readfile(sprite::SpriteMap &spmap, const QString &romname)
         // Check if mw2 end of file byte has been found -- the end of file byte has been read at this point
         if (parseret == 2)
             break;
-        
+
         // It is worth mentioning that if the mwt stream is at end, but not the mw2 stream is not, the loop
         // will keep going and won't provide any name to new found sprites.
         if (!mwtstream.atEnd())
@@ -188,7 +184,7 @@ int mw2_mwt_readfile(sprite::SpriteMap &spmap, const QString &romname)
 
         spv.name = "";
     }
-    
+
     // Check for errors with end of data byte.
     if (mw2stream.atEnd() && *read_bytes != (char) 0xFF) {
         ret = 2;
@@ -211,7 +207,6 @@ cleanup:
     mwtfile.close();
     delete[] read_bytes;
     return ret;
-    return 0;
 }
 
 int ssc_readfile(sprite::SpriteMap &spmap, const QString &romname)

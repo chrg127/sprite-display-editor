@@ -14,32 +14,32 @@
 int Tool::open(const QString &rompath, QString &errors)
 {
     int err = 0;
-    bool openerr;
-    QString path_noext;
+    bool romerr;
 
-    rom_filename = rompath;
-    openerr = smw::openrom(&main_rom, rompath.toLatin1().data(), false);
-    if (!openerr && smw::openromerror == smw::errid_open_rom_failed) {
-        errors += "Failed to open the ROM";
+    rom_filename = rompath.split(".", QString::SkipEmptyParts).at(0);
+    romerr = smw::openrom(&main_rom, rompath.toLatin1().data(), false);
+    if (!romerr && smw::openromerror == smw::errid_open_rom_failed) {
+        errors += "Failed to open ROM";
         return 2;
     }
     sprite::load_size_table(main_rom);
-
-    path_noext = rompath.split(".", QString::SkipEmptyParts).at(0);
-    err = mw2_mwt_readfile(_sprite_map, path_noext);
+    err = mw2_mwt_readfile(_sprite_map, rom_filename);
+    // couldn't open files = likely not an user error, since you CAN edit ROMs
+    // without using custom .mw2 and .mwt files
     if (err == 1) {
         _sprite_map.clear();
         return 1;
     } else if (err == 2) {
-        errors += "Bad format on the .mw2 or .mwt file. Could not read it.";
+        errors += "Bad format on the .mw2 file. Could not read.";
         _sprite_map.clear();
         return 2;
     }
-    err = ssc_readfile(_sprite_map, path_noext);
-    if (err != 0) {
-        errors += "Bad format on the .ssc file. Could not read it.";
-        return 2;
-    }
+    err = ssc_readfile(_sprite_map, rom_filename);
+    // probably worth just resetting all the tooltips in case of error...
+    //errors += "Bad format on the .ssc file. Could not read it.";
+    if (err != 0)
+        return 1;
+
     return 0;
 }
 
@@ -48,24 +48,4 @@ void Tool::close(void)
     _sprite_map.clear();
     smw::closerom(&main_rom, false);
 }
-
-/*    case 3:
-        errors += "The .mwt file references sprites not recorded into the .mw2 file.";
-        break;
-    case 4:
-        errors += "The .mw2 file has records of sprites not yet recorded into the .mwt file.\n";*/
-/*
-int Tool::save(void)
-{
-    mw2_writefile(_sprite_map, rom_filename);
-    mwt_writefile(_sprite_map, rom_filename);
-    ssc_writefile(_sprite_map, rom_filename);
-    return 0;
-}
-void Tool::add_sprite(const sprite::SpriteKey &sk, const sprite::SpriteValue &sv)
-{
-    _sprite_map.insert(sk, sv);
-}
-*/
-
 

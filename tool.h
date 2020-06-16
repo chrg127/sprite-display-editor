@@ -44,8 +44,6 @@ public:
 
     int open(const QString &rompath, QString &errors);
     void close(void);
-/*  int save(void);
-    void add_sprite(const sprite::SpriteKey &sk, const sprite::SpriteValue &sv);*/
 };
 
 #endif

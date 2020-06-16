@@ -51,9 +51,7 @@
 #ifndef _SPRITE_FILES_H
 #define _SPRITE_FILES_H
 
-#include <QMultiMap>
 #include "sprite.h"
-#include "ext/libsmw.h"
 
 class QString;
 
@@ -79,3 +77,4 @@ int mwt_writefile(sprite::SpriteMap &spmap, const QString &romname);
 int ssc_writefile(sprite::SpriteMap &spmap, const QString &romname);
 
 #endif
+

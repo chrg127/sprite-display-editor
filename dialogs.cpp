@@ -1,8 +1,8 @@
-#define DEBUG
-
 #include "dialogs.h"
 
 #include <QObject>
+#include <QPushButton>
+#include <QLabel>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -15,17 +15,22 @@
 AddSpriteDialog::AddSpriteDialog(QWidget *parent)
     : QDialog(parent)
 {
+    QFormLayout *flt        = new QFormLayout;
+    QHBoxLayout *hlt        = new QHBoxLayout;
+    QVBoxLayout *mainlt     = new QVBoxLayout;
+    QPushButton *btadd      = new QPushButton("Add");
+    QPushButton *btclose    = new QPushButton("Close");
+
     setSizeGripEnabled(true);
     setWindowTitle("Add a sprite");
+    connect(btadd, &QAbstractButton::clicked, this, &AddSpriteDialog::before_accept);
+    connect(btclose, &QAbstractButton::clicked, this, &AddSpriteDialog::reject);
 
-    QFormLayout *flt = new QFormLayout;
-    QHBoxLayout *hlt = new QHBoxLayout;
-    QVBoxLayout *mainlt = new QVBoxLayout;
-    flt->addRow(id, idbox);
-    flt->addRow(eb, ebbox);
-    flt->addRow(name, namebox);
-    flt->addRow(tip, tipbox);
-    flt->addRow(extbt, extbtbox);
+    flt->addRow(new QLabel("ID (00 - FF): "),               id);
+    flt->addRow(new QLabel("Extra bits (0 - 3): "),         eb);
+    flt->addRow(new QLabel("Name: "),                       name);
+    flt->addRow(new QLabel("Tooltip: "),                    tip);
+    flt->addRow(new QLabel("Extension Bytes (00 - FF): "),  extbt);
     hlt->addWidget(new QWidget, 0, Qt::AlignLeft);
     hlt->addWidget(btadd);
     hlt->addWidget(btclose);
@@ -33,18 +38,15 @@ AddSpriteDialog::AddSpriteDialog(QWidget *parent)
     mainlt->addLayout(flt);
     mainlt->addLayout(hlt);
     setLayout(mainlt);
-
-    connect(btadd, &QAbstractButton::clicked, this, &AddSpriteDialog::before_accept);
-    connect(btclose, &QAbstractButton::clicked, this, &AddSpriteDialog::reject);
 }
 
 void AddSpriteDialog::before_accept(bool checked)
 {
     QMessageBox msg;
 
-    if (idbox->displayText() == "" && ebbox->displayText() == "" &&
-        namebox->displayText() == "" && tipbox->displayText() == "" &&
-        extbtbox->displayText() == "")
+    if (id->displayText() == "" && eb->displayText() == "" &&
+        name->displayText() == "" && tip->displayText() == "" &&
+        extbt->displayText() == "")
     {
         msg.setText("Fill out at least one of the boxes first.");
         msg.exec();
@@ -53,8 +55,3 @@ void AddSpriteDialog::before_accept(bool checked)
     return accept();
 }
 
-/*
-void AddSpriteDialog::connect_btadd(const QObject *obj, void (MainWindow::*method)(bool))
-{
-    //connect(btadd, &QAbstractButton::clicked, obj, method);
-}*/

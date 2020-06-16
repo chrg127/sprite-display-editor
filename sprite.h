@@ -37,15 +37,23 @@
 #ifndef _SPRITE_H_
 #define _SPRITE_H_
 
-#include <QString>
 #include <QVector>
-#include <QDebug>
-#include <cstring>
 #include "ext/libsmw.h"
 
+//#define DEBUG
+#define USE_QT
+
+#ifdef DEBUG
+#include <QDebug>
+#endif
+
+#ifdef USE_QT
+#include <QMetaType>
+#endif
+
+class QString;
+
 namespace sprite {
-
-
 
 /* About the size table:
  * The table may or may not exist, as it is the case with an unchanged SMW
@@ -59,10 +67,9 @@ namespace sprite {
 
 #define SPRITE_MAX_DATA_SIZE 0xF
 #define SPRITE_DEF_DATA_SIZE 0x3
-#define SPRITE_SIZE_TABLE_MAX 0x400
 
-/* Copies the size table from the ROM.
- * If the table doesn't exist, it fills the local size table with the default size. */
+/* Copies the size table from the ROM. If it doesn't exist, it fills the local one
+ * with the default size (3) . */
 void load_size_table(smw::ROM &rom);
 
 
@@ -77,17 +84,20 @@ private:
     unsigned char _extra_bits;
 public:
     unsigned char id;
-    
+
     SpriteKey()
         : _extra_bits(0), id(0)
     { }
-    
+
     SpriteKey(unsigned char m_id, unsigned char m_extra_bits)
         : _extra_bits(m_extra_bits & 3), id(m_id)
     { }
 
-    ~SpriteKey()
+    SpriteKey(const SpriteKey &sk)
+        : _extra_bits(sk.extra_bits()), id(sk.id)
     { }
+
+    ~SpriteKey() { }
 
     // Set bit 2-7 of extra_bits to 0
     void extra_bits(unsigned char eb)
@@ -112,7 +122,7 @@ bool operator==(const SpriteKey &sk1, const SpriteKey &sk2);
 
 
 
-/* Sprite Tile data, contained in the mwt file. */
+/* Sprite tile data, contained in the mwt file. */
 struct SpriteTile {
     int x, y;
     unsigned short map16tile;
@@ -125,8 +135,7 @@ struct SpriteTile {
         : x(xx), y(yy), map16tile(tile)
     { }
 
-    ~SpriteTile()
-    { }
+    ~SpriteTile() { }
 };
 
 bool operator==(const SpriteTile &st1, const SpriteTile &st2);
@@ -135,9 +144,15 @@ bool operator==(const SpriteTile &st1, const SpriteTile &st2);
 
 /* Other sprite data */
 struct SpriteValue {
+#ifdef USE_QT
     QString name;
     QString tooltip;
     QVector<SpriteTile> tiles;
+#else
+    std::string name;
+    std::string tooltip;
+    std::vector<SpriteTile> tiles;
+#endif
     unsigned char ext_bytes[SPRITE_MAX_DATA_SIZE];
 
     SpriteValue()
@@ -146,27 +161,54 @@ struct SpriteValue {
         for (unsigned char i = 0; i < SPRITE_MAX_DATA_SIZE; i++)
             ext_bytes[i] = 0;
     }
-
-    ~SpriteValue()
-    { }
-
-    int add_tile_str(QString &tstr);
+    ~SpriteValue() { }
+    int string2tile(QString &tstr);
 };
 
 bool operator==(const SpriteValue &sv1, const SpriteValue &sv2);
 
 
+struct SpritePair {
+    const SpriteKey *k;
+    const SpriteValue *v;
+
+    SpritePair() 
+        : k(NULL), v(NULL)
+    { }
+
+    SpritePair(const SpritePair &sp)
+        : k(sp.k), v(sp.v)
+    { }
+
+    ~SpritePair() { }
+};
+
 
 /* Declarations of a sprite data structure and some associated functions. Use them if you want. */
-
 typedef QMultiMap<SpriteKey, SpriteValue> SpriteMap;
 
-/* Gets a reference to each sprite value for a SpriteKey. If no sprite values were found, it'll insert 
- * a new one for that key, then get a reference to it. All the references are put in a vector. */
-void get_sprite_values(SpriteMap &spmap, const SpriteKey &sk, QVector<SpriteValue *> &arr);
-void print_sprites(const SpriteMap &spmap);
+/* Gets the SpriteValue's for one SpriteKey. Inserts a new one if none were found. */
+void get_values(SpriteMap &spmap, const SpriteKey &sk, QVector<SpriteValue *> &arr);
+/* Gets the SpriteValue that matches the SpriteKey and the ext_bytes. Inserts a new one if none were found. */
+void get_value(SpriteMap &spmap, const SpriteKey &sk, 
+        unsigned char ext_bytes[SPRITE_MAX_DATA_SIZE], SpriteValue *spv);
 
-}
+#ifdef DEBUG
+void print_sprites(const SpriteMap &spmap);
+#endif
+
+
+
+}   // namespace sprite
+
+
+
+#ifdef USE_QT
+Q_DECLARE_METATYPE(sprite::SpriteKey);
+Q_DECLARE_METATYPE(sprite::SpritePair);
+#endif
+
+#undef USE_QT
 
 #endif
 

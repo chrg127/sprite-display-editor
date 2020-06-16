@@ -1,27 +1,35 @@
+//#define DEBUG
+
 #include "sprite.h"
 
+#include <QString>
 #include <QMultiMap>
-#include <QDebug>
+#include <cstring>
 
-#define DEBUG
+#ifdef DEBUG
+#include <QDebug>
+#endif
 
 namespace sprite {
 
-/* This is a lookup table for sprite sizes. It is effectively a copy of the 
- * real table in the ROM. It is worth noting that due to static initialization,
- * this array will always be initializated with 0s, instead of default value 3.
- * This is intentional, and can be used to check if sprite size have been
- * loaded or not. */
-static unsigned char _size_table[SPRITE_SIZE_TABLE_MAX];
+/* This is a lookup table for sprite sizes. It is effectively a copy of the real table in the ROM.
+ * It is worth noting that due to static initialization, this array will always be initializated
+ * with 0s, instead of default value 3. This is intentional, and can be used to check if sprite size 
+ * have been loaded or not. */
+
+#define SIZE_TABLE_MAX 0x400
+#define SIZE_TABLE_PEREB 0x100
+
+static unsigned char _size_table[SIZE_TABLE_MAX];
 
 void load_size_table(smw::ROM &rom)
 {
     unsigned int addr, pc_addr;
     int i;
-    
+
     // Check if the table exists
     if (rom.data[smw::snestopc(0x0EF30F, &rom)] != 0x42) {
-        std::memset(_size_table, SPRITE_DEF_DATA_SIZE, SPRITE_SIZE_TABLE_MAX);
+        std::memset(_size_table, SPRITE_DEF_DATA_SIZE, SIZE_TABLE_MAX);
         return;
     }
     // Build table address and copy table
@@ -30,7 +38,7 @@ void load_size_table(smw::ROM &rom)
     addr |= rom.data[smw::snestopc(0x0EF30C, &rom)];
     pc_addr = smw::snestopc(addr, &rom);
     i = 0;
-    while (i != SPRITE_SIZE_TABLE_MAX)
+    while (i != SIZE_TABLE_MAX)
         _size_table[i++] = rom.data[pc_addr++];
 }
 
@@ -38,16 +46,12 @@ void load_size_table(smw::ROM &rom)
 
 unsigned char SpriteKey::get_data_size(void) const
 {
-    return _size_table[this->extra_bits()*0x100+this->id];
+    return _size_table[this->extra_bits()*SIZE_TABLE_PEREB+this->id];
 }
 
 bool operator<(const SpriteKey &s1, const SpriteKey &s2)
 {
-    if (s1.id < s2.id)
-        return true;
-    if (s1.id == s2.id && s1.extra_bits() < s2.extra_bits())
-        return true;
-    return false;
+    return s1.id < s2.id || (s1.id == s2.id && s1.extra_bits() < s2.extra_bits());
 }
 
 bool operator==(const SpriteKey &sk1, const SpriteKey &sk2)
@@ -64,7 +68,7 @@ bool operator==(const SpriteTile &st1, const SpriteTile &st2)
 
 
 
-int SpriteValue::add_tile_str(QString &tstr)
+int SpriteValue::string2tile(QString &tstr)
 {
     SpriteTile st;
     QStringList tokens;
@@ -98,15 +102,17 @@ bool operator==(const SpriteValue &sv1, const SpriteValue &sv2)
 
 
 
-void get_sprite_values(SpriteMap &spmap, const sprite::SpriteKey &sk, QVector<sprite::SpriteValue *> &arr)
+void get_values(SpriteMap &spmap, const SpriteKey &sk, QVector<SpriteValue *> &arr)
 {
     int i = 0;
+    // sv is initialized to default value, remember that
     sprite::SpriteValue sv;
 
+    // Insert a new sprite value if none were found and return that
     auto it = spmap.find(sk);
     if (it == spmap.end()) {
         it = spmap.insert(sk, sv);
-        arr.insert(0, &(it.value()));
+        arr.insert( 0, &(it.value() ));
         return;
     }
     while (it != spmap.end() && it.key() == sk) {
@@ -114,8 +120,29 @@ void get_sprite_values(SpriteMap &spmap, const sprite::SpriteKey &sk, QVector<sp
         i++;
         it++;
     }
+    return;
 }
 
+void get_value(SpriteMap &spmap, const SpriteKey &sk, 
+        unsigned char ext_bytes[SPRITE_MAX_DATA_SIZE], SpriteValue *spv)
+{
+    SpriteValue sv;
+    int i;
+
+    auto it = spmap.find(sk);
+    if (it == spmap.end()) {
+        it = spmap.insert(sk, sv);
+        spv = &it.value();
+    }
+    while (it != spmap.end() && it.key() == sk) {
+        for (i = 0; i < SPRITE_MAX_DATA_SIZE; i++)
+            if (it.value().ext_bytes[i] != ext_bytes[i])
+                continue;
+        spv = &it.value();
+    }
+}
+
+#ifdef DEBUG
 void print_sprites(const SpriteMap &spmap)
 {
     for (auto it = spmap.begin(); it != spmap.end(); it++) {
@@ -131,6 +158,7 @@ void print_sprites(const SpriteMap &spmap)
         qDebug() << "";
     }
 }
+#endif
 
 }
 
