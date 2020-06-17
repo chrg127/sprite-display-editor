@@ -21,14 +21,12 @@ private:
     QString last_dir;
 
     QLabel *romnamelabel    = new QLabel("ROM name: ");
-    QLabel *idlabel         = new QLabel;
-    QLabel *eblabel         = new QLabel;
-    QLineEdit *namebox      = new QLineEdit;
-    QLineEdit *tipbox       = new QLineEdit;
-    QLineEdit *extbox       = new QLineEdit;
+    //QLabel *idlabel         = new QLabel;
+    //QLabel *eblabel         = new QLabel;
     QListWidget *sprite_list = new QListWidget;
 
     AddSpriteDialog *add_dialog = new AddSpriteDialog(this);
+    EditSpriteDialog *edit_dialog = new EditSpriteDialog(this);
 
     void create_menu(void);
     void create_buttons(QHBoxLayout *lt);
@@ -38,11 +36,12 @@ public:
     ~MainWindow() { }
 
 public slots:
-    void open_file(bool checked);
-    void add_new_sprite(bool checked);
-    void remove_sprite(bool checked);
-    void edit_look(bool checked);
-    void item_changed(QListWidgetItem *curr, QListWidgetItem *prev);
+    void open_file();
+    void add_new_sprite();
+    void edit_sprite();
+    void edit_look();
+    void remove_sprite();
+    //void item_changed(QListWidgetItem *curr, QListWidgetItem *prev);
 };
 
 #endif

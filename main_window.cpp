@@ -25,37 +25,26 @@ MainWindow::MainWindow(Tool *tool, QWidget *parent)
 {
     QWidget *center_widget      = new QWidget(this);
     QPushButton *addspritebtn   = new QPushButton("Add new sprite");
+    QHBoxLayout *buttonlt       = new QHBoxLayout;
     QVBoxLayout *mainlt         = new QVBoxLayout(center_widget);
-    QHBoxLayout *label_lt       = new QHBoxLayout;
-    QFormLayout *edit_formlt    = new QFormLayout;
-    QHBoxLayout *list_mainlt    = new QHBoxLayout;
-    QHBoxLayout *button_mainlt  = new QHBoxLayout;
 
-
-    setMinimumWidth(250);
-    setWindowTitle("spritegfxtool");
-    setCentralWidget(center_widget);
     create_menu();
-    create_buttons(button_mainlt);
-    connect(addspritebtn, &QAbstractButton::clicked, this, &MainWindow::add_new_sprite);
-    connect(sprite_list, &QListWidget::currentItemChanged, this, &MainWindow::item_changed);
+    create_buttons(buttonlt);
 
     center_widget->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Maximum);
     addspritebtn->setToolTip("Adds sprites.");
 
-    label_lt->addWidget(romnamelabel);
-    edit_formlt->addRow(new QLabel("ID:"),              idlabel);
-    edit_formlt->addRow(new QLabel("Extra bits:"),      eblabel);
-    edit_formlt->addRow(new QLabel("Sprite name:"),     namebox);
-    edit_formlt->addRow(new QLabel("Sprite tooltip:"),  tipbox);
-    edit_formlt->addRow(new QLabel("Extension bytes:"), extbox);
-    list_mainlt->addWidget(sprite_list);
-    mainlt->addLayout(label_lt);
     mainlt->addWidget(romnamelabel);
-    mainlt->addLayout(list_mainlt);
-    mainlt->addLayout(edit_formlt);
-    mainlt->addLayout(button_mainlt);
+    mainlt->addWidget(sprite_list);
+    mainlt->addLayout(buttonlt);
     mainlt->addWidget(addspritebtn, 0, Qt::AlignHCenter);
+
+    setMinimumWidth(250);
+    setWindowTitle("spritegfxtool");
+    setCentralWidget(center_widget);
+
+    connect(addspritebtn, &QAbstractButton::released, this, &MainWindow::add_new_sprite);
+    //connect(sprite_list, &QListWidget::currentItemChanged, this, &MainWindow::item_changed);
 }
 
 void MainWindow::create_menu(void)
@@ -72,41 +61,30 @@ void MainWindow::create_menu(void)
 
 void MainWindow::create_buttons(QHBoxLayout *lt)
 {
-    QPushButton *editlookbtn        = new QPushButton("Edit look");
-    QPushButton *removespritebtn    = new QPushButton("Remove sprite");
+    QPushButton *editsprite     = new QPushButton("Edit sprite");
+    QPushButton *editlook       = new QPushButton("Edit look");
+    QPushButton *removesprite   = new QPushButton("Remove sprite");
 
-    editlookbtn->setToolTip("Edit the graphics used by the selected sprite.");
-    removespritebtn->setToolTip("Removes the selected sprite.");
+    editsprite->setToolTip("Edit the selected sprite.");
+    editlook->setToolTip("Edit the graphics used by the selected sprite.");
+    removesprite->setToolTip("Removes the selected sprite.");
 
     lt->addWidget(new QWidget, 0, Qt::AlignLeft);
-    lt->addWidget(editlookbtn);//, 0, Qt::AlignHCenter);
-    lt->addWidget(removespritebtn);//, 0, Qt::AlignHCenter);
+    lt->addWidget(editsprite);
+    lt->addWidget(editlook);//, 0, Qt::AlignHCenter);
+    lt->addWidget(removesprite);//, 0, Qt::AlignHCenter);
     lt->addWidget(new QWidget, 0, Qt::AlignRight);
 
-    connect(editlookbtn, &QAbstractButton::clicked, this, &MainWindow::edit_look);
-    connect(removespritebtn, &QAbstractButton::clicked, this, &MainWindow::remove_sprite);
+    connect(editsprite, &QAbstractButton::released, this, &MainWindow::edit_sprite);
+    connect(editlook, &QAbstractButton::released, this, &MainWindow::edit_look);
+    connect(removesprite, &QAbstractButton::released, this, &MainWindow::remove_sprite);
 }
 
 
-/*
-struct SpriteData {
-    unsigned char id;
-    unsigned char eb;
-    unsigned char ext_bytes[SPRITE_MAX_DATA_SIZE];
-    SpriteData() : id(0), eb(0)
-    {
-        for (int i = 0; i < SPRITE_MAX_DATA_SIZE; i++)
-            ext_bytes[i] = 0;
-    }
 
-};
-
-Q_DECLARE_METATYPE(SpriteData);
-*/
-
-void MainWindow::open_file(bool checked)
+void MainWindow::open_file()
 {
-    QString name, name_noext, errors;
+    QString name, errors;
     QMessageBox msg;
     int err;
     QString item_msg;
@@ -140,25 +118,31 @@ void MainWindow::open_file(bool checked)
     }
 }
 
-void MainWindow::add_new_sprite(bool checked)
+void MainWindow::add_new_sprite()
 {
     add_dialog->exec();
 }
 
-void MainWindow::remove_sprite(bool checked)
+void MainWindow::edit_sprite()
 {
-#ifdef DEBUG
-    qDebug() << "Selected \"remove sprite\" button";
-#endif
+    edit_dialog->exec();
 }
 
-void MainWindow::edit_look(bool checked)
+void MainWindow::edit_look()
 {
 #ifdef DEBUG
     qDebug() << "Selected \"edit look\" button";
 #endif
 }
 
+void MainWindow::remove_sprite()
+{
+#ifdef DEBUG
+    qDebug() << "Selected \"remove sprite\" button";
+#endif
+}
+
+/*
 void MainWindow::item_changed(QListWidgetItem *curr, QListWidgetItem *prev)
 {
     sprite::SpritePair sp;
@@ -166,12 +150,6 @@ void MainWindow::item_changed(QListWidgetItem *curr, QListWidgetItem *prev)
     int i;
 
     if (curr != NULL) {
-        /*qDebug() << "current:" << curr->text();
-        sk = curr->data(Qt::UserRole).value<sprite::SpriteKey>();
-        qDebug() << "ID:" << sk.id << "Extra bits:" << sk.extra_bits();*/
-        /*sk = curr->data(Qt::UserRole).value<sprite::SpriteKey>();
-        sv
-        namebox->setText();*/
         sp = curr->data(Qt::UserRole).value<sprite::SpritePair>();
         idlabel->setText(QString("%1").arg(sp.k->id));
         eblabel->setText(QString("%2").arg(sp.k->extra_bits()));
@@ -181,10 +159,5 @@ void MainWindow::item_changed(QListWidgetItem *curr, QListWidgetItem *prev)
             extstr += QString("%1").arg(sp.v->ext_bytes[i]);
         extbox->setText(extstr);
     }
-    /*if (prev != NULL) {
-        qDebug() << "prev:" << prev->text();
-        sk = prev->data(Qt::UserRole).value<sprite::SpriteKey>();
-        qDebug() << "ID:" << sk.id << "Extra bits:" << sk.extra_bits();
-    }*/
-}
+}*/
 
