@@ -5,6 +5,7 @@
 #include <QString>
 #include <QMultiMap>
 #include <cstring>
+#include <cassert>
 
 #ifdef DEBUG
 #include <QDebug>
@@ -66,9 +67,14 @@ bool operator==(const SpriteTile &st1, const SpriteTile &st2)
     return st1.x == st2.x && st1.y == st2.y && st1.map16tile == st2.map16tile;
 }
 
+bool operator!=(const SpriteKey &sk1, const SpriteKey &sk2)
+{
+    return !(sk1 == sk2);
+}
 
 
-int SpriteValue::string2tile(QString &tstr)
+
+int SpriteValue::str2tile(const QString &tstr)
 {
     SpriteTile st;
     QStringList tokens;
@@ -86,6 +92,37 @@ int SpriteValue::string2tile(QString &tstr)
     return 0;
 }
 
+void SpriteValue::tile2str(QString &s, const unsigned int i) const
+{
+    s = QString("%1%2%3%4%5").arg(tiles[i].x).arg(',').
+        arg(tiles[i].y).arg(',').arg(tiles[i].map16tile);
+}
+
+int SpriteValue::str2extb(const QString &extstr, const unsigned char size)
+{
+    unsigned char i, tmp[SPRITE_MAX_DATA_SIZE];
+    bool ok;
+
+    assert(size < SPRITE_MAX_DATA_SIZE);
+    if (extstr.size() != size*2)
+        return 1;
+    for (i = 0; i < size; i++) {
+        tmp[i] = extstr.mid(i*2, 2).toInt(&ok, 16);
+        if (!ok)
+            return 1;
+    }
+    for (i = 0; i < size; i++)
+        ext_bytes[i] = tmp[i];
+    return 0;
+}
+
+void SpriteValue::extb2str(QString &s, const unsigned char size) const
+{
+    assert(size < 0xF);
+    for (unsigned char i = 0; i < size; i++)
+        s += QString("%1").arg(ext_bytes[i]);
+}
+
 bool operator==(const SpriteValue &sv1, const SpriteValue &sv2)
 {
     if (sv1.name != sv2.name)
@@ -100,47 +137,41 @@ bool operator==(const SpriteValue &sv1, const SpriteValue &sv2)
     return true;
 }
 
-
-
-void get_values(SpriteMap &spmap, const SpriteKey &sk, QVector<SpriteValue *> &arr)
+bool operator!=(const SpriteValue &sv1, const SpriteValue &sv2)
 {
-    int i = 0;
-    // sv is initialized to default value, remember that
-    sprite::SpriteValue sv;
-
-    // Insert a new sprite value if none were found and return that
-    auto it = spmap.find(sk);
-    if (it == spmap.end()) {
-        it = spmap.insert(sk, sv);
-        arr.insert( 0, &(it.value() ));
-        return;
-    }
-    while (it != spmap.end() && it.key() == sk) {
-        arr.insert(i, &(it.value()));
-        i++;
-        it++;
-    }
-    return;
+    return !(sv1 == sv2);
 }
 
-void get_value(SpriteMap &spmap, const SpriteKey &sk, 
-        unsigned char ext_bytes[SPRITE_MAX_DATA_SIZE], SpriteValue *spv)
+
+int get_values(SpriteMap &spmap, const SpriteKey &sk, QVector<SpriteValue *> &arr)
 {
-    SpriteValue sv;
+    auto it = spmap.find(sk);
+    if (it == spmap.end())
+        return 1;
+    for ( ; it != spmap.end() && it.key() == sk; it++ ) 
+        arr.append( &it.value() );
+    return 0;
+}
+
+/*int get_single_value(const SpriteMap &spmap, const SpriteKey &sk, 
+        const unsigned char ext_bytes[SPRITE_MAX_DATA_SIZE], SpriteValue &spv)
+{
     int i;
+    unsigned char extsize = sk.get_ext_size();
 
     auto it = spmap.find(sk);
-    if (it == spmap.end()) {
-        it = spmap.insert(sk, sv);
-        spv = &it.value();
-    }
+    if (it == spmap.end())
+        return 1;
     while (it != spmap.end() && it.key() == sk) {
-        for (i = 0; i < SPRITE_MAX_DATA_SIZE; i++)
+        for (i = 0; i < extsize; i++)
             if (it.value().ext_bytes[i] != ext_bytes[i])
                 continue;
-        spv = &it.value();
+        spv = it.value();
+        return 0;
     }
+    return 1;
 }
+*/
 
 #ifdef DEBUG
 void print_sprites(const SpriteMap &spmap)

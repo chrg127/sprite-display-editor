@@ -9,6 +9,8 @@
 #include "ext/libsmw.h"
 #include "ext/asar_errors_small.h"
 
+#include <QDebug>
+
 /* opens rom, fills sprite map. Returns 0 for success, 1 for minor error (no need to report),
  * 2 for critical error (should report) */
 int Tool::open(const QString &rompath, QString &errors)
@@ -40,6 +42,7 @@ int Tool::open(const QString &rompath, QString &errors)
     if (err != 0)
         return 1;
 
+    _open = true;
     return 0;
 }
 
@@ -47,5 +50,30 @@ void Tool::close(void)
 {
     _sprite_map.clear();
     smw::closerom(&main_rom, false);
+    _open = false;
+    _unsaved = false;
+}
+
+bool Tool::update_sprite(const sprite::SpriteKey &key, const sprite::SpriteValue &oldvalue,
+            const sprite::SpriteValue &newvalue)
+{
+    auto it = _sprite_map.find(key);
+    if (it == _sprite_map.end())
+        return false;
+    while (it != _sprite_map.end() && it.key() == key && it.value() != oldvalue)
+        ;
+    if (it == _sprite_map.end() || it.key() != key)
+        return false;
+    it.value() = newvalue;
+    _unsaved = true;
+
+    return true;
+}
+
+void Tool::save()
+{
+    mw2_writefile(_sprite_map, rom_filename);
+    mwt_writefile(_sprite_map, rom_filename);
+    ssc_writefile(_sprite_map, rom_filename);
 }
 

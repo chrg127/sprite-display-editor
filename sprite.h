@@ -43,10 +43,6 @@
 //#define DEBUG
 #define USE_QT
 
-#ifdef DEBUG
-#include <QDebug>
-#endif
-
 #ifdef USE_QT
 #include <QMetaType>
 #endif
@@ -119,6 +115,7 @@ public:
 
 bool operator<(const SpriteKey &sk1, const SpriteKey &sk2);
 bool operator==(const SpriteKey &sk1, const SpriteKey &sk2);
+bool operator!=(const SpriteKey &sk1, const SpriteKey &sk2);
 
 
 
@@ -133,6 +130,10 @@ struct SpriteTile {
 
     SpriteTile(int xx, int yy, unsigned short tile)
         : x(xx), y(yy), map16tile(tile)
+    { }
+
+    SpriteTile(const SpriteTile &st)
+        : x(st.x), y(st.y), map16tile(st.map16tile)
     { }
 
     ~SpriteTile() { }
@@ -161,43 +162,43 @@ struct SpriteValue {
         for (unsigned char i = 0; i < SPRITE_MAX_DATA_SIZE; i++)
             ext_bytes[i] = 0;
     }
+
+    SpriteValue(const SpriteValue &sv)
+        : name(sv.name), tooltip(sv.tooltip), tiles(sv.tiles)
+    {
+        for (unsigned char i = 0; i < SPRITE_MAX_DATA_SIZE; i++)
+            ext_bytes[i] = sv.ext_bytes[i];
+    }
+
     ~SpriteValue() { }
-    int string2tile(QString &tstr);
+
+    /* Converts s to a tile and inserts the tile. */
+    int str2tile(const QString &s);
+    /* Converts the tile at position i to a string and returns it into s */
+    void tile2str(QString &s, const unsigned int i) const;
+    /* Converts s to extension bytes and copies them */
+    int str2extb(const QString &s, const unsigned char size);
+    /* Converts the extension bytes to a string and returns it into s */
+    void extb2str(QString &s, const unsigned char size) const;
 };
 
 bool operator==(const SpriteValue &sv1, const SpriteValue &sv2);
+bool operator!=(const SpriteValue &sv1, const SpriteValue &sv2);
 
-
-struct SpritePair {
-    const SpriteKey *k;
-    const SpriteValue *v;
-
-    SpritePair() 
-        : k(NULL), v(NULL)
-    { }
-
-    SpritePair(const SpritePair &sp)
-        : k(sp.k), v(sp.v)
-    { }
-
-    ~SpritePair() { }
-};
 
 
 /* Declarations of a sprite data structure and some associated functions. Use them if you want. */
 typedef QMultiMap<SpriteKey, SpriteValue> SpriteMap;
 
 /* Gets the SpriteValue's for one SpriteKey. Inserts a new one if none were found. */
-void get_values(SpriteMap &spmap, const SpriteKey &sk, QVector<SpriteValue *> &arr);
+int get_values(SpriteMap &spmap, const SpriteKey &sk, QVector<SpriteValue *> &arr);
 /* Gets the SpriteValue that matches the SpriteKey and the ext_bytes. Inserts a new one if none were found. */
-void get_value(SpriteMap &spmap, const SpriteKey &sk, 
-        unsigned char ext_bytes[SPRITE_MAX_DATA_SIZE], SpriteValue *spv);
+//int get_single_value(const SpriteMap &spmap, const SpriteKey &sk, 
+//        unsigned char ext_bytes[SPRITE_MAX_DATA_SIZE], SpriteValue *spv);
 
 #ifdef DEBUG
 void print_sprites(const SpriteMap &spmap);
 #endif
-
-
 
 }   // namespace sprite
 
@@ -205,10 +206,12 @@ void print_sprites(const SpriteMap &spmap);
 
 #ifdef USE_QT
 Q_DECLARE_METATYPE(sprite::SpriteKey);
-Q_DECLARE_METATYPE(sprite::SpritePair);
+Q_DECLARE_METATYPE(sprite::SpriteValue);
 #endif
 
 #undef USE_QT
+
+
 
 #endif
 

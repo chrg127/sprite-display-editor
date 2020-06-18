@@ -2,6 +2,7 @@
 #define _TOOL_H_
 
 #include <QObject>
+#include <QMultiMap>
 #include "sprite.h"
 #include "ext/libsmw.h"
 
@@ -17,8 +18,8 @@ private:
     sprite::SpriteMap _sprite_map;
     smw::ROM main_rom;
     QString rom_filename;
-    bool not_open = true;
-    bool unsaved = false;
+    bool _open = false;
+    bool _unsaved = false;
 
 public:
     /* libsmw doesn't have any ROM initialization by design. So let's do it here. (if it happens
@@ -42,8 +43,21 @@ public:
         return _sprite_map;
     }
 
+    bool unsaved() const
+    {
+        return _unsaved;
+    }
+
+    bool is_open() const
+    {
+        return _open;
+    }
+
     int open(const QString &rompath, QString &errors);
     void close(void);
+    bool update_sprite(const sprite::SpriteKey &key, const sprite::SpriteValue &oldvalue,
+            const sprite::SpriteValue &newvalue);
+    void save();
 };
 
 #endif

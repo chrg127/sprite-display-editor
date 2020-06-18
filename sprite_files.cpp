@@ -69,7 +69,7 @@ static int mw2_parse(QDataStream &mw2stream, sprite::SpriteKey &spk,
 
 /* Parses a single line from the .mwt file and does format error checking.
  * Returns 1 if the stream is at end, 2 for format error. (not used in the program) */
-static int mwt_parse(QTextStream &mwtstream, unsigned char &id, QString &name)
+/*static int mwt_parse(QTextStream &mwtstream, unsigned char &id, QString &name)
 {
     QString first_word, rest_of_line = "";
     bool ok = false;
@@ -86,10 +86,10 @@ static int mwt_parse(QTextStream &mwtstream, unsigned char &id, QString &name)
     first_word += rest_of_line.trimmed();
     name = first_word.trimmed();
     return 0;
-}
+}*/
 
 /* Parses a single line from the ssc file and updates the sprite accordingly.
- * Returns 1 on error. */
+ * Returns 1 on error, 2 if stream is at end. */
 static int ssc_parse(QTextStream &sscstream, sprite::SpriteMap &spmap)
 {
     QString word, ebword, tooltip;
@@ -101,7 +101,7 @@ static int ssc_parse(QTextStream &sscstream, sprite::SpriteMap &spmap)
     QVector<sprite::SpriteValue *> svarr;
 
     if (sscstream.atEnd())
-        return 1;
+        return 2;
     sscstream >> word >> ebword;
     sk.id = word.toInt(&ok, 16);
     eb = ebword.toInt(&ok);
@@ -110,24 +110,24 @@ static int ssc_parse(QTextStream &sscstream, sprite::SpriteMap &spmap)
     line_type = eb % 10;
     sk.extra_bits(eb/10);
 
-    sprite::get_values(spmap, sk, svarr);
+    if (sprite::get_values(spmap, sk, svarr) == 1) {
+        sprite::SpriteValue sv;
+        auto it = spmap.insert(sk, sv);
+        svarr.append( &it.value() );
+    }
 
-    if (line_type == 0) {
+    switch (line_type) {
+    case 0:
         tooltip = sscstream.readLine().trimmed();
         for (i = 0; i < svarr.size(); i++)
             svarr[i]->tooltip = tooltip;
         return 0;
-    } else if (line_type == 2) {
+    case 2:
         tilelist = sscstream.readLine().trimmed().split(' ', QString::SkipEmptyParts);
-        for (i = 0; i < svarr.size(); i++) {
-            for (j = 0; j < tilelist.size(); j++) {
-                int err = svarr[i]->string2tile(tilelist[j]);
-#ifdef DEBUG
-                if (err == 1)
-                    qDebug() << "Problem adding tile string. ID:" << sk.id << "extra bits:" << sk.extra_bits();
-#endif
-            }
-        }
+        for (i = 0; i < svarr.size(); i++)
+            for (j = 0; j < tilelist.size(); j++)
+                if (svarr[i]->str2tile(tilelist[j]) == 1)
+                    return 1;
         return 0;
     }
     return 1;
@@ -225,10 +225,15 @@ int ssc_readfile(sprite::SpriteMap &spmap, const QString &romname)
         parseret = ssc_parse(sscstream, spmap);
         if (parseret == 1) {
 #ifdef DEBUG
-            qDebug() << "ERROR: Bad format.";
+            qDebug() << "ssc_readfile: bad format";
 #endif
             return 1;
+        } else if (parseret == 2) {
+#ifdef DEBUG
+            qDebug() << "ssc_readfile: already at end";
+#endif
         }
+
     }
     sscfile.close();
 
