@@ -3,7 +3,8 @@
 
 #include <QDialog>
 #include <QLineEdit>
-#include <QTextEdit>
+#include <QPlainTextEdit>
+#include <QSpinBox>
 #include "sprite.h"
 
 class QLabel;
@@ -16,24 +17,26 @@ class SpriteFormDialog : public QDialog {
     Q_OBJECT
 protected:
     QLineEdit *name, *extbt;
-    QTextEdit *tip;
+    QPlainTextEdit *tip;
     QVBoxLayout *mainlt;
     QFormLayout *flt;
+
+    void toggle_extbox(const sprite::SpriteKey *key, const sprite::SpriteValue *val);
 public:
     SpriteFormDialog(QWidget *parent = nullptr);
     ~SpriteFormDialog() { }
 
-    void getname(QString &s) const
+    QString getname() const
     {
-        s = name->text();
+        return name->text();
     }
-    void gettip(QString &s) const
+    QString gettip() const
     {
-        s = tip->toPlainText();
+        return tip->toPlainText();
     }
-    void get_ext(QString &s) const
+    QString get_ext() const
     {
-        s = extbt->text();
+        return extbt->text();
     }
 public slots:
     virtual void before_accept() = 0;
@@ -49,9 +52,18 @@ private:
 public:
     AddSpriteDialog(QWidget *parent = nullptr);
     ~AddSpriteDialog() { }
+    unsigned char getid() const
+    {
+        return id->value();
+    }
+    unsigned char geteb() const
+    {
+        return eb->value();
+    }
 public slots:
     void before_accept();
     void before_reject();
+    void sb_values_changed(int newv);
 };
 
 
@@ -66,7 +78,7 @@ public:
 public slots:
     void before_accept();
     void before_reject();
-    void fill_boxes(const sprite::SpriteKey &sk, const sprite::SpriteValue sv);
+    void fill_boxes(const sprite::SpriteKey &sk, const sprite::SpriteValue &sv);
 };
 
 #endif

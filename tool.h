@@ -57,6 +57,7 @@ public:
     void close(void);
     bool update_sprite(const sprite::SpriteKey &key, const sprite::SpriteValue &oldvalue,
             const sprite::SpriteValue &newvalue);
+    void insert_sprite(const sprite::SpriteKey &key, const sprite::SpriteValue &val);
     void save();
 };
 

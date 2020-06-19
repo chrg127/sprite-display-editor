@@ -15,12 +15,12 @@
 #include <QMessageBox>
 #include <QVariant>
 #include <QCloseEvent>
+#include "dialogs.h"
 #include "sprite.h"
 #include "tool.h"
 
 #ifdef DEBUG
 #include <QDebug>
-#include <iostream>
 #endif
 
 #define MIN_WIDTH 400
@@ -29,13 +29,15 @@ MainWindow::MainWindow(Tool *tool, QWidget *parent)
     : QMainWindow(parent), main_tool(tool), last_dir(".")//QDir::homePath())
 {
     setMinimumWidth(MIN_WIDTH);
-    setWindowTitle("spritegfxtool");
+    setWindowTitle(QStringLiteral("Sprite Display Editor"));
 
-    QWidget *center_widget      = new QWidget(this);
-    QHBoxLayout *labellt        = new QHBoxLayout;
-    QHBoxLayout *buttonlt       = new QHBoxLayout;
-    QVBoxLayout *mainlt         = new QVBoxLayout(center_widget);
-    sprite_list     = new QListWidget;
+    QWidget *center_widget  = new QWidget(this);
+    QHBoxLayout *labellt    = new QHBoxLayout;
+    QHBoxLayout *buttonlt   = new QHBoxLayout;
+    QVBoxLayout *mainlt     = new QVBoxLayout(center_widget);
+    sprite_list             = new QListWidget;
+    add_dialog              = new AddSpriteDialog(this);
+    edit_dialog             = new EditSpriteDialog(this);    
 
     center_widget->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Maximum);
     setCentralWidget(center_widget);
@@ -70,37 +72,34 @@ void MainWindow::create_menu()
 
 void MainWindow::create_labels(QHBoxLayout *lt)
 {
+    QLabel *tmp     = new QLabel(QStringLiteral("ID:"));
+    QLabel *tmp2    = new QLabel(QStringLiteral("Extra bits:"));
     romnamelabel    = new QLabel(QStringLiteral("ROM name:"));
     idlabel         = new QLabel;
     eblabel         = new QLabel;
 
+    tmp->setAlignment(Qt::AlignRight);
+    tmp2->setAlignment(Qt::AlignRight);
     idlabel->setAlignment(Qt::AlignLeft);
-    idlabel->setFrameStyle(QFrame::Panel | QFrame::Sunken);
     eblabel->setAlignment(Qt::AlignLeft);
-    eblabel->setFrameStyle(QFrame::Panel | QFrame::Sunken);
 
-    QLabel *tmp = new QLabel(QStringLiteral("ID:"));
-    tmp->setFrameStyle(QFrame::Panel | QFrame::Sunken);
-    QLabel *tmp2 = new QLabel(QStringLiteral("Extra bits:"));
-    tmp2->setFrameStyle(QFrame::Panel | QFrame::Sunken);
-
-    lt->addWidget(tmp, 0, Qt::AlignLeft);
+    lt->addWidget(tmp);
     lt->addWidget(idlabel);
-    lt->addWidget(tmp2, 0, Qt::AlignLeft);
-    lt->addWidget(eblabel, 0, Qt::AlignLeft);
+    lt->addWidget(tmp2);
+    lt->addWidget(eblabel);
 }
 
 void MainWindow::create_buttons(QHBoxLayout *lt)
 {
-    editsprite     = new QPushButton("Edit sprite");
-    editlook       = new QPushButton("Edit look");
-    removesprite   = new QPushButton("Remove sprite");
-    addspritebtn   = new QPushButton("Add new sprite");
+    editsprite     = new QPushButton(QStringLiteral("Edit sprite"));
+    editlook       = new QPushButton(QStringLiteral("Edit look"));
+    removesprite   = new QPushButton(QStringLiteral("Remove sprite"));
+    addspritebtn   = new QPushButton(QStringLiteral("Add new sprite"));
 
-    addspritebtn->setToolTip("Add a new sprite.");
-    editsprite->setToolTip("Edit the selected sprite.");
-    editlook->setToolTip("Edit the graphics used by the selected sprite.");
-    removesprite->setToolTip("Removes the selected sprite.");
+    addspritebtn->setToolTip(QStringLiteral("Add a new sprite."));
+    editsprite->setToolTip(QStringLiteral("Edit the selected sprite."));
+    editlook->setToolTip(QStringLiteral("Edit the graphics used by the selected sprite."));
+    removesprite->setToolTip(QStringLiteral("Removes the selected sprite."));
 
     addspritebtn->setEnabled(false);
     editsprite->setEnabled(false);
@@ -113,12 +112,37 @@ void MainWindow::create_buttons(QHBoxLayout *lt)
     lt->addWidget(removesprite);//, 0, Qt::AlignHCenter);
     lt->addWidget(new QWidget, 0, Qt::AlignRight);
 
-    connect(addspritebtn, &QAbstractButton::released, this, &MainWindow::add_new_sprite);
+    connect(addspritebtn, &QAbstractButton::released, this, &MainWindow::add_sprite);
     connect(editsprite, &QAbstractButton::released, this, &MainWindow::edit_sprite);
     connect(editlook, &QAbstractButton::released, this, &MainWindow::edit_look);
     connect(removesprite, &QAbstractButton::released, this, &MainWindow::remove_sprite);
 }
 
+
+
+
+
+void MainWindow::add_list_item(const sprite::SpriteKey &key, const sprite::SpriteValue &val,
+        int pos)
+{
+    QString item_msg;
+    QListWidgetItem *item;
+
+    if (!val.name.isEmpty())
+        item_msg = val.name;
+    else
+        item_msg = QString("ID: %1; Extra bits: %2").arg(key.id, 0, 16)
+            .arg(key.extra_bits(), 0, 16);
+    item = new QListWidgetItem(item_msg);
+    item->setData(Qt::UserRole, QVariant::fromValue(key));
+    item->setData(Qt::UserRole+1, QVariant::fromValue(val));
+
+    if (pos == -1)
+        sprite_list->addItem(item);
+    else
+        sprite_list->insertItem(pos, item);
+        
+}
 
 
 void MainWindow::open_file()
@@ -131,7 +155,7 @@ void MainWindow::open_file()
 
     name = QFileDialog::getOpenFileName(this, "Open Image", last_dir,
             "SNES ROM files (*.smc *.sfc)");
-    if (name == "")
+    if (name.isEmpty())
         return;
     err = main_tool->open(name, errors);
     if (err == 2) {
@@ -145,13 +169,7 @@ void MainWindow::open_file()
     romnamelabel->setText("ROM name: " + QFileInfo(name).fileName());
     const sprite::SpriteMap &spmap = main_tool->sprite_map();
     for (auto it = spmap.begin(); it != spmap.end(); it++) {
-        if (it.value().name != "")
-            item_msg = it.value().name;
-        else
-            item_msg = QString("ID: %1; extra bits: %2").arg(it.key().id).arg(it.key().extra_bits());
-        item = new QListWidgetItem(item_msg, sprite_list);
-        item->setData(Qt::UserRole, QVariant::fromValue(it.key()));
-        item->setData(Qt::UserRole+1, QVariant::fromValue(it.value()));
+        add_list_item(it.key(), it.value());
     }
 
     addspritebtn->setEnabled(true);
@@ -160,9 +178,19 @@ void MainWindow::open_file()
     removesprite->setEnabled(true);
 }
 
-void MainWindow::add_new_sprite()
+void MainWindow::add_sprite()
 {
-    add_dialog->exec();
+    if (add_dialog->exec() == 0)
+        return; // no sprite to add
+
+    sprite::SpriteKey key(add_dialog->getid(), add_dialog->geteb());
+    sprite::SpriteValue val;
+    val.name = add_dialog->getname();
+    val.tooltip = add_dialog->gettip();
+    val.str2extb(add_dialog->get_ext(), key.get_ext_size());
+    main_tool->insert_sprite(key, val);
+    add_list_item(key, val);
+
 }
 
 void MainWindow::edit_sprite()
@@ -172,7 +200,7 @@ void MainWindow::edit_sprite()
     QString tmp;
 
     if (item == nullptr) {
-        msg.setText("No sprites selected. Select a sprite first to use this.");
+        msg.setText(QStringLiteral("No sprites selected. Select a sprite first to use this."));
         msg.exec();
         return;
     }
@@ -186,13 +214,16 @@ void MainWindow::edit_sprite()
 
     // get text from boxes and update everything.
     sprite::SpriteValue newsv(sv);
-    edit_dialog->getname(newsv.name);
-    edit_dialog->gettip(newsv.tooltip);
-    edit_dialog->get_ext(tmp);
-    sv.str2extb(tmp, sk.get_ext_size());
+    newsv.name = edit_dialog->getname();
+    newsv.tooltip = edit_dialog->gettip();
+    newsv.str2extb(edit_dialog->get_ext(), sk.get_ext_size());
+
     main_tool->update_sprite(sk, sv, newsv);
+
     item->setText(newsv.name);
     item->setData(Qt::UserRole+1, QVariant::fromValue(newsv));
+    if (main_tool->unsaved())
+        romnamelabel->setText(romnamelabel->text()+'*');
 }
 
 void MainWindow::edit_look()
@@ -208,8 +239,8 @@ void MainWindow::item_changed(QListWidgetItem *curr, QListWidgetItem *prev)
     if (curr == nullptr)
         return;
     const sprite::SpriteKey key(curr->data(Qt::UserRole).value<sprite::SpriteKey>());
-    idlabel->setText(QString("%1").arg(key.id));
-    eblabel->setText(QString("%1").arg(key.extra_bits()));
+    idlabel->setText(QString("%1").arg(key.id, 2, 16, QLatin1Char('0')).toUpper());
+    eblabel->setText(QString::number(key.extra_bits()));
 }
 
 static int display_save_message()
@@ -224,6 +255,13 @@ static int display_save_message()
 
 void MainWindow::close_file()
 {
+/*    if (!main_tool->is_open()) {
+        QMessageBox msg;
+        msg.setText(QStringLiteral("No ROM opened. Open a ROM first!"));
+        msg.exec();
+        return;
+    }*/
+
     if (main_tool->unsaved()) {
         switch(display_save_message()) {
         case QMessageBox::Save:
@@ -264,3 +302,4 @@ void MainWindow::closeEvent(QCloseEvent *event)
         event->ignore();
     }
 }
+

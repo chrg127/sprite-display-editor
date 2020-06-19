@@ -92,9 +92,9 @@ int SpriteValue::str2tile(const QString &tstr)
     return 0;
 }
 
-void SpriteValue::tile2str(QString &s, const unsigned int i) const
+QString SpriteValue::tile2str(const unsigned int i) const
 {
-    s = QString("%1%2%3%4%5").arg(tiles[i].x).arg(',').
+    return QString("%1%2%3%4%5").arg(tiles[i].x).arg(',').
         arg(tiles[i].y).arg(',').arg(tiles[i].map16tile);
 }
 
@@ -103,7 +103,7 @@ int SpriteValue::str2extb(const QString &extstr, const unsigned char size)
     unsigned char i, tmp[SPRITE_MAX_DATA_SIZE];
     bool ok;
 
-    assert(size < SPRITE_MAX_DATA_SIZE);
+    assert(size <= SPRITE_MAX_DATA_SIZE);
     if (extstr.size() != size*2)
         return 1;
     for (i = 0; i < size; i++) {
@@ -116,11 +116,14 @@ int SpriteValue::str2extb(const QString &extstr, const unsigned char size)
     return 0;
 }
 
-void SpriteValue::extb2str(QString &s, const unsigned char size) const
+QString SpriteValue::extb2str(const unsigned char size) const
 {
-    assert(size < 0xF);
+    QString s;
+
+    assert(size <= SPRITE_MAX_DATA_SIZE);
     for (unsigned char i = 0; i < size; i++)
-        s += QString("%1").arg(ext_bytes[i]);
+        s += QString("%1").arg(ext_bytes[i], 2, 16, QLatin1Char('0'));
+    return s;
 }
 
 bool operator==(const SpriteValue &sv1, const SpriteValue &sv2)

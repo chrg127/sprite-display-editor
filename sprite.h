@@ -175,11 +175,11 @@ struct SpriteValue {
     /* Converts s to a tile and inserts the tile. */
     int str2tile(const QString &s);
     /* Converts the tile at position i to a string and returns it into s */
-    void tile2str(QString &s, const unsigned int i) const;
+    QString tile2str(const unsigned int i) const;
     /* Converts s to extension bytes and copies them */
     int str2extb(const QString &s, const unsigned char size);
     /* Converts the extension bytes to a string and returns it into s */
-    void extb2str(QString &s, const unsigned char size) const;
+    QString extb2str(const unsigned char size) const;
 };
 
 bool operator==(const SpriteValue &sv1, const SpriteValue &sv2);

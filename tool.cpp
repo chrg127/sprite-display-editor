@@ -70,6 +70,11 @@ bool Tool::update_sprite(const sprite::SpriteKey &key, const sprite::SpriteValue
     return true;
 }
 
+void Tool::insert_sprite(const sprite::SpriteKey &key, const sprite::SpriteValue &val)
+{
+    _sprite_map.insert(key, val);
+}
+
 void Tool::save()
 {
     mw2_writefile(_sprite_map, rom_filename);

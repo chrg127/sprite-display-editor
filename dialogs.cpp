@@ -2,34 +2,71 @@
 
 #include "dialogs.h"
 
-#include <QObject>
 #include <QPushButton>
 #include <QLineEdit>
-#include <QTextEdit>
+#include <QPlainTextEdit>
 #include <QLabel>
-#include <QHBoxLayout>
+#include <QSpinBox>
 #include <QMessageBox>
+#include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QFormLayout>
-#include <QSpinBox>
 #include <QFont>
+#include <QValidator>
 #include "sprite.h"
-#include "hexvalidator.h"
 
 #ifdef DEBUG
 #include <QDebug>
 #endif
+
+static QChar fixupchar(QChar c)
+{
+    if (!isxdigit(c.toLatin1()))
+        c = '0';
+    if (c.isLower())
+        c = c.toUpper();
+    return c;
+}
+
+/* Validator for the extension bytes's textbox */
+class HexValidator : public QValidator {
+public:
+    HexValidator(QObject *parent)
+        : QValidator(parent)
+    { }
+
+private:
+    void fixup(QString &input) const
+    {
+        for (int i = 0; i < input.size(); i++)
+            input[i] = fixupchar(input[i]);
+    }
+
+    State validate(QString &input, int &pos) const
+    {
+        for (int i = 0; i < input.size(); i++) {
+            if (!isxdigit(input[i].toLatin1()))
+                return Invalid;
+            input[i] = fixupchar(input[i]);
+        }
+        return Acceptable;
+    }
+};
 
 SpriteFormDialog::SpriteFormDialog(QWidget *parent)
     : QDialog(parent)
 {
     name    = new QLineEdit;
     extbt   = new QLineEdit;
-    tip     = new QTextEdit;
+    tip     = new QPlainTextEdit;
     mainlt  = new QVBoxLayout;
     flt     = new QFormLayout;
 
+    setSizeGripEnabled(true);
+
     extbt->setValidator(new HexValidator(this));
+    tip->setFixedHeight(17*5);
+    tip->setTabChangesFocus(true);
 
     flt->addRow("Name: ", name);
     flt->addRow("Tooltip: ", tip);
@@ -37,8 +74,24 @@ SpriteFormDialog::SpriteFormDialog(QWidget *parent)
 
     mainlt->addLayout(flt);
     setLayout(mainlt);
+}
 
-    setSizeGripEnabled(true);
+void SpriteFormDialog::toggle_extbox(const sprite::SpriteKey *key, const sprite::SpriteValue *val)
+{
+    if (key == nullptr)
+        return;
+
+    unsigned char extsize = key->get_ext_size();
+    if (extsize == 0) {
+        extbt->clear();
+        extbt->setEnabled(false);
+    } else {
+        extbt->setEnabled(true);
+        extbt->setMaxLength(extsize*2);
+        extbt->home(false);
+        if (val != nullptr)
+            extbt->setText(val->extb2str(extsize));
+    }
 }
 
 
@@ -61,8 +114,6 @@ AddSpriteDialog::AddSpriteDialog(QWidget *parent)
     eb->setRange(0, 3);
 
     setWindowTitle(QStringLiteral("Add sprite"));
-    connect(add, &QAbstractButton::released, this, &AddSpriteDialog::before_accept);
-    connect(close, &QAbstractButton::released, this, &AddSpriteDialog::before_reject);
 
     spinlt->addWidget(new QLabel(QStringLiteral("ID (00 - FF):")));
     spinlt->addWidget(id);
@@ -74,21 +125,17 @@ AddSpriteDialog::AddSpriteDialog(QWidget *parent)
     buttonlt->addWidget(new QWidget, 0, Qt::AlignRight);
     mainlt->insertLayout(0, spinlt);
     mainlt->addLayout(buttonlt);
+
+    connect(add, &QAbstractButton::released, this, &AddSpriteDialog::before_accept);
+    connect(close, &QAbstractButton::released, this, &AddSpriteDialog::before_reject);
+    connect(id, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, &AddSpriteDialog::sb_values_changed);
+    connect(eb, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, &AddSpriteDialog::sb_values_changed);
 }
 
 void AddSpriteDialog::before_accept()
 {
-    QMessageBox msg;
-
-    /*
-    if (id->displayText() == "" && eb->displayText() == "" &&
-        name->displayText() == "" && //tip->displayText() == "" &&
-        extbt->displayText() == "")
-    {
-        msg.setText("Fill out at least one of the boxes first.");
-        msg.exec();
-        return;
-    }*/
     return accept();
 }
 
@@ -97,6 +144,11 @@ void AddSpriteDialog::before_reject()
     return reject();
 }
 
+void AddSpriteDialog::sb_values_changed(int newv)
+{
+    sprite::SpriteKey sk(id->value(), eb->value());
+    toggle_extbox(&sk, nullptr);
+}
 
 
 EditSpriteDialog::EditSpriteDialog(QWidget *parent)
@@ -106,18 +158,20 @@ EditSpriteDialog::EditSpriteDialog(QWidget *parent)
     QPushButton *close      = new QPushButton(QStringLiteral("Close"));
     QHBoxLayout *labellt    = new QHBoxLayout;
     QHBoxLayout *buttonlt   = new QHBoxLayout;
-
+    QLabel *tmp = new QLabel(QStringLiteral("ID:"));
+    QLabel *tmp2 = new QLabel(QStringLiteral("Extra bits:"));
     id = new QLabel;
     eb = new QLabel;
 
     setMinimumWidth(400);
     setWindowTitle(QStringLiteral("Edit Sprite"));
-    connect(save, &QAbstractButton::released, this, &EditSpriteDialog::before_accept);
-    connect(close, &QAbstractButton::released, this, &EditSpriteDialog::before_reject);
 
-    labellt->addWidget(new QLabel(QStringLiteral("ID:")));
+    tmp->setAlignment(Qt::AlignRight);
+    tmp2->setAlignment(Qt::AlignRight);
+
+    labellt->addWidget(tmp);
     labellt->addWidget(id);
-    labellt->addWidget(new QLabel(QStringLiteral("Extra bits:")));
+    labellt->addWidget(tmp2);
     labellt->addWidget(eb);
     buttonlt->addWidget(new QWidget, 0, Qt::AlignLeft);
     buttonlt->addWidget(save);
@@ -125,6 +179,9 @@ EditSpriteDialog::EditSpriteDialog(QWidget *parent)
     buttonlt->addWidget(new QWidget, 0, Qt::AlignRight);
     mainlt->insertLayout(0, labellt);
     mainlt->addLayout(buttonlt);
+
+    connect(save, &QAbstractButton::released, this, &EditSpriteDialog::before_accept);
+    connect(close, &QAbstractButton::released, this, &EditSpriteDialog::before_reject);
 }
 
 void EditSpriteDialog::before_accept()
@@ -140,25 +197,15 @@ void EditSpriteDialog::before_reject()
     return reject();
 }
 
-void EditSpriteDialog::fill_boxes(const sprite::SpriteKey &sk, const sprite::SpriteValue sv)
+void EditSpriteDialog::fill_boxes(const sprite::SpriteKey &sk, const sprite::SpriteValue &sv)
 {
-    unsigned char extsize = sk.get_ext_size();
-    QString extstr, extmask;
+    QString extmask;
 
     name->setText(sv.name);
     name->home(false);
-    tip->setText(sv.tooltip);
-    //tip->home(false);
-    if (extsize == 0)
-        extbt->setEnabled(false);
-    else {
-        extbt->setEnabled(true);
-        sv.extb2str(extstr, extsize);
-        extbt->setText(extstr);
-        extbt->setInputMask(extmask);
-        extbt->home(false);
-    }
-    id->setText(QString("%1").arg(sk.id));
-    eb->setText(QString("%1").arg(sk.extra_bits()));
+    tip->setPlainText(sv.tooltip);
+    toggle_extbox(&sk, &sv);
+    id->setText(QString("%1").arg(sk.id, 2, 16, QLatin1Char('0')).toUpper());
+    eb->setText(QString::number(sk.extra_bits()));
 }
 

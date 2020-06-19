@@ -2,7 +2,6 @@
 #define _WINDOW_H
 
 #include <QMainWindow>
-#include "dialogs.h"
 
 class QString;
 class QLabel;
@@ -14,6 +13,13 @@ class QFormLayout;
 class QVBoxLayout;
 class QHBoxLayout;
 class Tool;
+class AddSpriteDialog;
+class EditSpriteDialog;
+namespace sprite {
+    class SpriteKey;
+    class SpriteTile;
+    class SpriteValue;
+}
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -30,12 +36,13 @@ private:
     QPushButton *editlook;
     QPushButton *removesprite;
     QPushButton *addspritebtn;
-    AddSpriteDialog *add_dialog = new AddSpriteDialog(this);
-    EditSpriteDialog *edit_dialog = new EditSpriteDialog(this);
+    AddSpriteDialog *add_dialog;
+    EditSpriteDialog *edit_dialog;
 
     void create_menu();
     void create_labels(QHBoxLayout *lt);
     void create_buttons(QHBoxLayout *lt);
+    void add_list_item(const sprite::SpriteKey &key, const sprite::SpriteValue &val, int pos = -1);
 
 public:
     explicit MainWindow(Tool *tool, QWidget *parent = nullptr);
@@ -44,7 +51,7 @@ public:
 public slots:
     void open_file();
     void close_file();
-    void add_new_sprite();
+    void add_sprite();
     void edit_sprite();
     void edit_look();
     void remove_sprite();
