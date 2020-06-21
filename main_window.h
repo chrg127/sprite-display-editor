@@ -42,7 +42,8 @@ private:
     void create_menu();
     void create_labels(QHBoxLayout *lt);
     void create_buttons(QHBoxLayout *lt);
-    void add_list_item(const sprite::SpriteKey &key, const sprite::SpriteValue &val, int pos = -1);
+    QListWidgetItem *add_list_item(const sprite::SpriteKey &key, const sprite::SpriteValue &val, int pos = -1);
+    QListWidgetItem *find_item(const sprite::SpriteKey &key, const sprite::SpriteValue &val);
 
 public:
     explicit MainWindow(Tool *tool, QWidget *parent = nullptr);

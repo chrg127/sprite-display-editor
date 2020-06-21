@@ -38,8 +38,6 @@
 #define _SPRITE_H_
 
 #include <QVector>
-#include "ext/libsmw.h"
-
 //#define DEBUG
 #define USE_QT
 
@@ -48,6 +46,11 @@
 #endif
 
 class QString;
+namespace smw {
+    struct ROM;
+}
+
+
 
 namespace sprite {
 
@@ -193,8 +196,8 @@ typedef QMultiMap<SpriteKey, SpriteValue> SpriteMap;
 /* Gets the SpriteValue's for one SpriteKey. Inserts a new one if none were found. */
 int get_values(SpriteMap &spmap, const SpriteKey &sk, QVector<SpriteValue *> &arr);
 /* Gets the SpriteValue that matches the SpriteKey and the ext_bytes. Inserts a new one if none were found. */
-//int get_single_value(const SpriteMap &spmap, const SpriteKey &sk, 
-//        unsigned char ext_bytes[SPRITE_MAX_DATA_SIZE], SpriteValue *spv);
+SpriteValue *get_single_value(SpriteMap &spmap, const SpriteKey &key,
+        const unsigned char ext_bytes[SPRITE_MAX_DATA_SIZE]);
 
 #ifdef DEBUG
 void print_sprites(const SpriteMap &spmap);

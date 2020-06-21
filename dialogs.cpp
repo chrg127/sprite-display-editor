@@ -95,7 +95,8 @@ void SpriteFormDialog::toggle_extbox(const sprite::SpriteKey *key, const sprite:
 }
 
 
-
+/*
+*/
 AddSpriteDialog::AddSpriteDialog(QWidget *parent)
     : SpriteFormDialog(parent)
 {
@@ -103,8 +104,8 @@ AddSpriteDialog::AddSpriteDialog(QWidget *parent)
     QHBoxLayout *buttonlt     = new QHBoxLayout;
     QPushButton *add    = new QPushButton(QStringLiteral("Add"));
     QPushButton *close  = new QPushButton(QStringLiteral("Close"));
-    id = new QSpinBox;
-    eb = new QSpinBox;
+    id = new PaddedSpinBox;
+    eb = new PaddedSpinBox;
 
     id->setRange(0, 0xFF);
     id->setDisplayIntegerBase(16);
@@ -126,21 +127,31 @@ AddSpriteDialog::AddSpriteDialog(QWidget *parent)
     mainlt->insertLayout(0, spinlt);
     mainlt->addLayout(buttonlt);
 
-    connect(add, &QAbstractButton::released, this, &AddSpriteDialog::before_accept);
-    connect(close, &QAbstractButton::released, this, &AddSpriteDialog::before_reject);
+    connect(add, &QAbstractButton::released, this, &AddSpriteDialog::on_accept);
+    connect(close, &QAbstractButton::released, this, &AddSpriteDialog::on_reject);
     connect(id, QOverload<int>::of(&QSpinBox::valueChanged),
             this, &AddSpriteDialog::sb_values_changed);
     connect(eb, QOverload<int>::of(&QSpinBox::valueChanged),
             this, &AddSpriteDialog::sb_values_changed);
 }
 
-void AddSpriteDialog::before_accept()
+void AddSpriteDialog::on_accept()
 {
+    id->setValue(0);
+    eb->setValue(0);
+    name->clear();
+    tip->clear();
+    extbt->clear();
     return accept();
 }
 
-void AddSpriteDialog::before_reject()
+void AddSpriteDialog::on_reject()
 {
+    id->setValue(0);
+    eb->setValue(0);
+    name->clear();
+    tip->clear();
+    extbt->clear();
     return reject();
 }
 
@@ -149,6 +160,7 @@ void AddSpriteDialog::sb_values_changed(int newv)
     sprite::SpriteKey sk(id->value(), eb->value());
     toggle_extbox(&sk, nullptr);
 }
+
 
 
 EditSpriteDialog::EditSpriteDialog(QWidget *parent)
@@ -180,20 +192,17 @@ EditSpriteDialog::EditSpriteDialog(QWidget *parent)
     mainlt->insertLayout(0, labellt);
     mainlt->addLayout(buttonlt);
 
-    connect(save, &QAbstractButton::released, this, &EditSpriteDialog::before_accept);
-    connect(close, &QAbstractButton::released, this, &EditSpriteDialog::before_reject);
+    connect(save, &QAbstractButton::released, this, &EditSpriteDialog::on_accept);
+    connect(close, &QAbstractButton::released, this, &EditSpriteDialog::on_reject);
 }
 
-void EditSpriteDialog::before_accept()
+void EditSpriteDialog::on_accept()
 {
     return accept();
 }
 
-void EditSpriteDialog::before_reject()
+void EditSpriteDialog::on_reject()
 {
-    name->clear();
-    tip->clear();
-    extbt->clear();
     return reject();
 }
 

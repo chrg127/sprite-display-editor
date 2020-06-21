@@ -15,6 +15,7 @@
 #include <QMessageBox>
 #include <QVariant>
 #include <QCloseEvent>
+#include <cassert>
 #include "dialogs.h"
 #include "sprite.h"
 #include "tool.h"
@@ -23,12 +24,12 @@
 #include <QDebug>
 #endif
 
-#define MIN_WIDTH 400
+
 
 MainWindow::MainWindow(Tool *tool, QWidget *parent)
     : QMainWindow(parent), main_tool(tool), last_dir(".")//QDir::homePath())
 {
-    setMinimumWidth(MIN_WIDTH);
+    setMinimumWidth(400);
     setWindowTitle(QStringLiteral("Sprite Display Editor"));
 
     QWidget *center_widget  = new QWidget(this);
@@ -55,6 +56,9 @@ MainWindow::MainWindow(Tool *tool, QWidget *parent)
     connect(sprite_list, &QListWidget::itemDoubleClicked, this, &MainWindow::edit_sprite);
 }
 
+
+
+/* NOTE: Private functions */
 void MainWindow::create_menu()
 {
     QMenu *menu;
@@ -118,11 +122,7 @@ void MainWindow::create_buttons(QHBoxLayout *lt)
     connect(removesprite, &QAbstractButton::released, this, &MainWindow::remove_sprite);
 }
 
-
-
-
-
-void MainWindow::add_list_item(const sprite::SpriteKey &key, const sprite::SpriteValue &val,
+QListWidgetItem *MainWindow::add_list_item(const sprite::SpriteKey &key, const sprite::SpriteValue &val,
         int pos)
 {
     QString item_msg;
@@ -131,7 +131,8 @@ void MainWindow::add_list_item(const sprite::SpriteKey &key, const sprite::Sprit
     if (!val.name.isEmpty())
         item_msg = val.name;
     else
-        item_msg = QString("ID: %1; Extra bits: %2").arg(key.id, 0, 16)
+        item_msg = QString("ID: %1; Extra bits: %2")
+            .arg(key.id, 2, 16, QLatin1Char('0'))
             .arg(key.extra_bits(), 0, 16);
     item = new QListWidgetItem(item_msg);
     item->setData(Qt::UserRole, QVariant::fromValue(key));
@@ -141,56 +142,89 @@ void MainWindow::add_list_item(const sprite::SpriteKey &key, const sprite::Sprit
         sprite_list->addItem(item);
     else
         sprite_list->insertItem(pos, item);
-        
+    return item;
 }
 
-
-void MainWindow::open_file()
+/* This is worth optimizing later. */
+QListWidgetItem *MainWindow::find_item(const sprite::SpriteKey &key, const sprite::SpriteValue &val)
 {
-    QString name, errors;
-    QMessageBox msg;
-    int err;
-    QString item_msg;
-    QListWidgetItem *item;
+    int i, val_equal = 1;
 
-    name = QFileDialog::getOpenFileName(this, "Open Image", last_dir,
-            "SNES ROM files (*.smc *.sfc)");
-    if (name.isEmpty())
-        return;
-    err = main_tool->open(name, errors);
-    if (err == 2) {
-        msg.setText("Found errors:\n" + errors);
-        msg.exec();
-        return;
+    for (i = 0; i < sprite_list->count(); i++) {
+        sprite::SpriteKey tmpkey(sprite_list->item(i)->data(Qt::UserRole).value<sprite::SpriteKey>());
+        sprite::SpriteValue tmpval(sprite_list->item(i)->data(Qt::UserRole+1).value<sprite::SpriteValue>());
+        for (int j = 0; j < key.get_ext_size() && val_equal == 1; j++)
+            if (tmpval.ext_bytes[j] != val.ext_bytes[j])
+                val_equal = 0;
+        if (tmpkey == key && val_equal == 1)
+            return sprite_list->item(i);
     }
-
-    // No errors found, setup the widgets
-    last_dir = name;
-    romnamelabel->setText("ROM name: " + QFileInfo(name).fileName());
-    const sprite::SpriteMap &spmap = main_tool->sprite_map();
-    for (auto it = spmap.begin(); it != spmap.end(); it++) {
-        add_list_item(it.key(), it.value());
-    }
-
-    addspritebtn->setEnabled(true);
-    editsprite->setEnabled(true);
-    editlook->setEnabled(true);
-    removesprite->setEnabled(true);
+    return nullptr;
 }
 
+
+
+/* NOTE: Static function (mostly messages functions */
+static inline int not_open_message()
+{
+    QMessageBox msg;
+    msg.setText(QStringLiteral("No ROM opened."));
+    msg.setInformativeText(QStringLiteral("Open a ROM first!"));
+    return msg.exec();
+}
+
+static inline int no_selected_message()
+{
+    QMessageBox msg;
+    msg.setText(QStringLiteral("No sprites selected."));
+    msg.setInformativeText(QStringLiteral("Select a sprite first to use this."));
+    return msg.exec();
+}
+
+/* Common messages */
+static inline int display_save_message()
+{
+    QMessageBox msg;
+    msg.setText(QStringLiteral("There are unsaved changes."));
+    msg.setInformativeText(QStringLiteral("Do you want to save your changes?"));
+    msg.setStandardButtons(QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
+    msg.setDefaultButton(QMessageBox::Save);
+    return msg.exec();
+}
+
+
+
+/* NOTE: Slots */
 void MainWindow::add_sprite()
 {
+    int ret;
+    QMessageBox msg;
+
     if (add_dialog->exec() == 0)
         return; // no sprite to add
-
     sprite::SpriteKey key(add_dialog->getid(), add_dialog->geteb());
     sprite::SpriteValue val;
     val.name = add_dialog->getname();
     val.tooltip = add_dialog->gettip();
     val.str2extb(add_dialog->get_ext(), key.get_ext_size());
-    main_tool->insert_sprite(key, val);
-    add_list_item(key, val);
-
+    ret = main_tool->insert_sprite(key, val);
+    if (ret != 1) {
+        sprite_list->setCurrentItem(add_list_item(key, val));
+        return;
+    }
+    msg.setText(QStringLiteral("A similar sprite was found."));
+    msg.setInformativeText(QStringLiteral("Would you like to edit that instead?"));
+    msg.setStandardButtons(QMessageBox::No | QMessageBox::Yes);
+    msg.setDefaultButton(QMessageBox::Yes);
+    ret = msg.exec();
+    if (ret != QMessageBox::Yes) {
+        sprite_list->setCurrentItem(add_list_item(key, val));
+        return;
+    }
+    QListWidgetItem *item = find_item(key, val);
+    assert(item != nullptr);
+    sprite_list->setCurrentItem(item);
+    editsprite->click();
 }
 
 void MainWindow::edit_sprite()
@@ -200,8 +234,7 @@ void MainWindow::edit_sprite()
     QString tmp;
 
     if (item == nullptr) {
-        msg.setText(QStringLiteral("No sprites selected. Select a sprite first to use this."));
-        msg.exec();
+        no_selected_message();
         return;
     }
 
@@ -232,6 +265,15 @@ void MainWindow::edit_look()
 
 void MainWindow::remove_sprite()
 {
+    QListWidgetItem *item = sprite_list->currentItem();
+    if (item == nullptr) {
+        no_selected_message();
+        return;
+    }
+    sprite::SpriteKey key(item->data(Qt::UserRole).value<sprite::SpriteKey>());
+    sprite::SpriteValue val(item->data(Qt::UserRole+1).value<sprite::SpriteValue>());
+    main_tool->remove_sprite(key, val);
+    delete item;    // This will also remove the item from the list
 }
 
 void MainWindow::item_changed(QListWidgetItem *curr, QListWidgetItem *prev)
@@ -243,24 +285,43 @@ void MainWindow::item_changed(QListWidgetItem *curr, QListWidgetItem *prev)
     eblabel->setText(QString::number(key.extra_bits()));
 }
 
-static int display_save_message()
+void MainWindow::open_file()
 {
+    QString name, errors;
     QMessageBox msg;
-    msg.setText(QStringLiteral("There are unsaved changes."));
-    msg.setInformativeText(QStringLiteral("Do you want to save your changes?"));
-    msg.setStandardButtons(QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
-    msg.setDefaultButton(QMessageBox::Save);
-    return msg.exec();
+    QString item_msg;
+    int err;
+
+    name = QFileDialog::getOpenFileName(this, "Open Image", last_dir,
+            "SNES ROM files (*.smc *.sfc)");
+    if (name.isEmpty())
+        return;
+    err = main_tool->open(name, errors);
+    if (err == 2) {
+        msg.setText("Found errors:\n" + errors);
+        msg.exec();
+        return;
+    }
+
+    // No errors found, setup the widgets
+    last_dir = name;
+    romnamelabel->setText("ROM name: " + QFileInfo(name).fileName());
+    const sprite::SpriteMap &spmap = main_tool->sprite_map();
+    for (auto it = spmap.begin(); it != spmap.end(); it++)
+        add_list_item(it.key(), it.value());
+
+    addspritebtn->setEnabled(true);
+    editsprite->setEnabled(true);
+    editlook->setEnabled(true);
+    removesprite->setEnabled(true);
 }
 
 void MainWindow::close_file()
 {
-/*    if (!main_tool->is_open()) {
-        QMessageBox msg;
-        msg.setText(QStringLiteral("No ROM opened. Open a ROM first!"));
-        msg.exec();
+    if (!main_tool->is_open()) {
+        not_open_message();
         return;
-    }*/
+    }
 
     if (main_tool->unsaved()) {
         switch(display_save_message()) {

@@ -1,4 +1,4 @@
-//#define DEBUG
+#define DEBUG
 
 #include "sprite.h"
 
@@ -6,6 +6,7 @@
 #include <QMultiMap>
 #include <cstring>
 #include <cassert>
+#include "ext/libsmw.h"
 
 #ifdef DEBUG
 #include <QDebug>
@@ -156,25 +157,28 @@ int get_values(SpriteMap &spmap, const SpriteKey &sk, QVector<SpriteValue *> &ar
     return 0;
 }
 
-/*int get_single_value(const SpriteMap &spmap, const SpriteKey &sk, 
-        const unsigned char ext_bytes[SPRITE_MAX_DATA_SIZE], SpriteValue &spv)
+SpriteValue *get_single_value(SpriteMap &spmap, const SpriteKey &key, 
+        const unsigned char ext_bytes[SPRITE_MAX_DATA_SIZE])
 {
-    int i;
-    unsigned char extsize = sk.get_ext_size();
+    unsigned char extsize = key.get_ext_size();
+    int i, eq;
 
-    auto it = spmap.find(sk);
+    auto it = spmap.find(key);
     if (it == spmap.end())
-        return 1;
-    while (it != spmap.end() && it.key() == sk) {
+        return nullptr; // not found
+    while (it != spmap.end() && it.key() == key) {
+        eq = 1;
         for (i = 0; i < extsize; i++)
             if (it.value().ext_bytes[i] != ext_bytes[i])
-                continue;
-        spv = it.value();
-        return 0;
+                eq = 0;
+        if (eq == 0) {
+            it++;
+            continue;
+        }
+        return &(it.value());   // found a similar sprite
     }
-    return 1;
+    return nullptr; // no similar sprites found
 }
-*/
 
 #ifdef DEBUG
 void print_sprites(const SpriteMap &spmap)

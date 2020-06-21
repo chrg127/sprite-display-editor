@@ -54,6 +54,8 @@ void Tool::close(void)
     _unsaved = false;
 }
 
+/* Updates a sprite. This probably could be achieved with a sprite_map.replace() - but I don't
+ * like its effects, so this will have to do. */
 bool Tool::update_sprite(const sprite::SpriteKey &key, const sprite::SpriteValue &oldvalue,
             const sprite::SpriteValue &newvalue)
 {
@@ -70,9 +72,25 @@ bool Tool::update_sprite(const sprite::SpriteKey &key, const sprite::SpriteValue
     return true;
 }
 
-void Tool::insert_sprite(const sprite::SpriteKey &key, const sprite::SpriteValue &val)
+/* Likewise, just inserting a new sprite won't do. We'd like to check if a similar sprite -
+ * one with same ID, extra bits and extension bytes - exists.
+ * This is where I start wondering whether implementing a data structure myself would be
+ * worth it... */
+int Tool::insert_sprite(const sprite::SpriteKey &key, const sprite::SpriteValue &val)
 {
+    sprite::SpriteValue *tmp;
+
+    tmp = sprite::get_single_value(_sprite_map, key, val.ext_bytes);
+    if (tmp != nullptr)
+        return 1;
     _sprite_map.insert(key, val);
+    return 0;
+}
+
+void Tool::remove_sprite(sprite::SpriteKey &key, sprite::SpriteValue &val)
+{
+    _sprite_map.remove(key, val);
+    _unsaved = true;
 }
 
 void Tool::save()
