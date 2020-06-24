@@ -8,6 +8,7 @@
 #include "sprite_files.h"
 #include "ext/libsmw.h"
 #include "ext/asar_errors_small.h"
+#include "sprite_tools.h"
 
 #include <QDebug>
 
@@ -25,6 +26,12 @@ int Tool::open(const QString &rompath, QString &errors)
         return 2;
     }
     sprite::load_size_table(main_rom);
+
+    if (check_pixi_inserted(main_rom)) {
+        find_pixi_sprites(main_rom);
+    }
+
+
     err = mw2_mwt_readfile(_sprite_map, rom_filename);
     // couldn't open files = likely not an user error, since you CAN edit ROMs
     // without using custom .mw2 and .mwt files
