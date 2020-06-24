@@ -5,12 +5,13 @@
 #include <QLineEdit>
 #include <QPlainTextEdit>
 #include <QSpinBox>
-//#include "sprite.h"
 
+class QPushButton;
 class QLabel;
 class QVBoxLayout;
 class QHBoxLayout;
 class QFormLayout;
+class QListWidget;
 namespace sprite {
     class SpriteKey;
     class SpriteValue;
@@ -18,11 +19,12 @@ namespace sprite {
 
 /* Just a simple class made so I could have padding
  * (fuck QT for not adding padding for spinboxes */
-class PaddedSpinBox : public QSpinBox
-{
+class PaddedSpinBox : public QSpinBox {
+
 public:
     PaddedSpinBox(QWidget *parent = 0) : QSpinBox(parent)
     { }
+
 protected:
     QString textFromValue(int value) const override
     {
@@ -31,72 +33,107 @@ protected:
     }
 };
 
-class SpriteFormDialog : public QDialog {
+
+class SpriteForm : public QWidget {
     Q_OBJECT
-protected:
+public:
     QLineEdit *name, *extbt;
     QPlainTextEdit *tip;
-    QVBoxLayout *mainlt;
-    QFormLayout *flt;
+
+    SpriteForm(QWidget *parent = nullptr);
+    ~SpriteForm() { }
 
     void toggle_extbox(const sprite::SpriteKey *key, const sprite::SpriteValue *val);
-public:
-    SpriteFormDialog(QWidget *parent = nullptr);
-    ~SpriteFormDialog() { }
-
-    QString getname() const
-    {
-        return name->text();
-    }
-    QString gettip() const
-    {
-        return tip->toPlainText();
-    }
-    QString get_ext() const
-    {
-        return extbt->text();
-    }
-public slots:
-    virtual void on_accept() = 0;
-    virtual void on_reject() = 0;
 };
 
 
 
-class AddSpriteDialog : public SpriteFormDialog {
+class AddSpriteDialog : public QDialog {
     Q_OBJECT
 private:
+    SpriteForm *spform;
     PaddedSpinBox *id, *eb;
+    QListWidget *not_ins_list;
+
+    void create_spinboxes(QFormLayout *lt);
+    void create_buttons(QHBoxLayout *lt);
+    void create_spoiler(QHBoxLayout *lt);
+
 public:
     AddSpriteDialog(QWidget *parent = nullptr);
     ~AddSpriteDialog() { }
+
+    void init_ext_field();
+    void clear_fields();
+
     unsigned char getid() const
     {
         return id->value();
     }
+
     unsigned char geteb() const
     {
         return eb->value();
     }
-public slots:
-    void on_accept();
-    void on_reject();
-    void sb_values_changed(int newv);
+
+    QString getname() const
+    {
+        return spform->name->text();
+    }
+
+    QString gettip() const
+    {
+        return spform->tip->toPlainText();
+    }
+
+    QString get_ext() const
+    {
+        return spform->extbt->text();
+    }
 };
 
 
 
-class EditSpriteDialog : public SpriteFormDialog {
+class EditSpriteDialog : public QDialog {
     Q_OBJECT
+
 private:
     QLabel *id, *eb;
+    SpriteForm *spform;
+
 public:
     EditSpriteDialog(QWidget *parent = nullptr);
     ~EditSpriteDialog() { }
-public slots:
-    void on_accept();
-    void on_reject();
-    void fill_boxes(const sprite::SpriteKey &sk, const sprite::SpriteValue &sv);
+    void init_fields(const sprite::SpriteKey &key, const sprite::SpriteValue &val);
+
+    QString getname() const
+    {
+        return spform->name->text();
+    }
+
+    QString gettip() const
+    {
+        return spform->tip->toPlainText();
+    }
+
+    QString get_ext() const
+    {
+        return spform->extbt->text();
+    }
+};
+
+
+
+class EditDisplayDialog : public QDialog {
+    Q_OBJECT
+
+private:
+    QLabel *text;
+
+public:
+    EditDisplayDialog(QWidget *parent = nullptr);
+    ~EditDisplayDialog() { }
 };
 
 #endif
+

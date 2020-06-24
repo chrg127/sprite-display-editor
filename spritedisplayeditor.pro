@@ -10,6 +10,7 @@ SOURCES += main_window.cpp \
            tool.cpp \
            sprite.cpp \
            sprite_files.cpp \
+           sprite_tools.cpp \
            ext/libsmw.cpp \
            ext/crc32.cpp \
            main.cpp
@@ -19,6 +20,7 @@ HEADERS += main_window.h \
            tool.h \
            sprite.h \
            sprite_files.h \
+           sprite_tools.h \
            ext/libsmw.h \
            ext/crc32.h \
            ext/asar_errors_small.h

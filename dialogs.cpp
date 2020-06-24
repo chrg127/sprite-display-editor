@@ -3,11 +3,8 @@
 #include "dialogs.h"
 
 #include <QPushButton>
-#include <QLineEdit>
-#include <QPlainTextEdit>
 #include <QLabel>
-#include <QSpinBox>
-#include <QMessageBox>
+#include <QListWidget>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QFormLayout>
@@ -18,6 +15,9 @@
 #ifdef DEBUG
 #include <QDebug>
 #endif
+
+using sprite::SpriteKey;
+using sprite::SpriteValue;
 
 static QChar fixupchar(QChar c)
 {
@@ -53,30 +53,25 @@ private:
     }
 };
 
-SpriteFormDialog::SpriteFormDialog(QWidget *parent)
-    : QDialog(parent)
+
+
+SpriteForm::SpriteForm(QWidget *parent)
+    : QWidget(parent)
 {
+    QFormLayout *flt = new QFormLayout(this);
     name    = new QLineEdit;
     extbt   = new QLineEdit;
     tip     = new QPlainTextEdit;
-    mainlt  = new QVBoxLayout;
-    flt     = new QFormLayout;
-
-    setSizeGripEnabled(true);
 
     extbt->setValidator(new HexValidator(this));
     tip->setFixedHeight(17*5);
     tip->setTabChangesFocus(true);
-
-    flt->addRow("Name: ", name);
-    flt->addRow("Tooltip: ", tip);
+    flt->addRow("Name: ",                       name);
+    flt->addRow("Tooltip: ",                    tip);
     flt->addRow("Extension Bytes\n(00 - FF): ", extbt);
-
-    mainlt->addLayout(flt);
-    setLayout(mainlt);
 }
 
-void SpriteFormDialog::toggle_extbox(const sprite::SpriteKey *key, const sprite::SpriteValue *val)
+void SpriteForm::toggle_extbox(const SpriteKey *key, const SpriteValue *val)
 {
     if (key == nullptr)
         return;
@@ -95,91 +90,139 @@ void SpriteFormDialog::toggle_extbox(const sprite::SpriteKey *key, const sprite:
 }
 
 
-/*
-*/
+
 AddSpriteDialog::AddSpriteDialog(QWidget *parent)
-    : SpriteFormDialog(parent)
+    : QDialog(parent)
 {
-    QHBoxLayout *spinlt     = new QHBoxLayout;
-    QHBoxLayout *buttonlt     = new QHBoxLayout;
-    QPushButton *add    = new QPushButton(QStringLiteral("Add"));
-    QPushButton *close  = new QPushButton(QStringLiteral("Close"));
+    QVBoxLayout *mainlt     = new QVBoxLayout;
+    QFormLayout *spinlt     = new QFormLayout;
+    QHBoxLayout *buttonlt   = new QHBoxLayout;
+    QHBoxLayout *notinslt   = new QHBoxLayout;
+    spform = new SpriteForm;
+    QWidget *space = new QWidget;
+
+    setSizeGripEnabled(true);
+    setWindowTitle(QStringLiteral("Add sprite"));
+    create_spinboxes(spinlt);
+    create_buttons(buttonlt);
+    create_spoiler(notinslt);
+    space->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::MinimumExpanding);
+
+    mainlt->addLayout(spinlt);
+    mainlt->addWidget(spform);
+    mainlt->addLayout(buttonlt);
+    mainlt->addLayout(notinslt);
+    mainlt->addWidget(not_ins_list);
+
+    mainlt->addWidget(space, 1);
+    setLayout(mainlt);
+}
+
+void AddSpriteDialog::create_spinboxes(QFormLayout *lt)
+{
+    QLabel *tmp             = new QLabel(QStringLiteral("ID (00 - FF):"));
+    QLabel *tmp2            = new QLabel(QStringLiteral("Extra bits (0 - 3):"));
     id = new PaddedSpinBox;
     eb = new PaddedSpinBox;
 
     id->setRange(0, 0xFF);
     id->setDisplayIntegerBase(16);
+    id->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     QFont f = id->font();
     f.setCapitalization(QFont::AllUppercase);
     id->setFont(f);
     eb->setRange(0, 3);
+    eb->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
-    setWindowTitle(QStringLiteral("Add sprite"));
+    lt->addRow(tmp, id);
+    lt->addRow(tmp2, eb);
 
-    spinlt->addWidget(new QLabel(QStringLiteral("ID (00 - FF):")));
-    spinlt->addWidget(id);
-    spinlt->addWidget(new QLabel(QStringLiteral("Extra bits (0 - 3):")));
-    spinlt->addWidget(eb);
+    connect(id, QOverload<int>::of(&QSpinBox::valueChanged), [=](int newv) {
+                SpriteKey key(newv, eb->value());
+                spform->toggle_extbox(&key, nullptr);
+            });
+    connect(eb, QOverload<int>::of(&QSpinBox::valueChanged), [=](int newv) {
+                SpriteKey key(id->value(), newv);
+                spform->toggle_extbox(&key, nullptr);
+            });
+}
+
+void AddSpriteDialog::create_buttons(QHBoxLayout *buttonlt)
+{
+    QPushButton *add        = new QPushButton(QStringLiteral("Add"));
+    QPushButton *close      = new QPushButton(QStringLiteral("Close"));
+
     buttonlt->addWidget(new QWidget, 0, Qt::AlignLeft);
     buttonlt->addWidget(add);
     buttonlt->addWidget(close);
     buttonlt->addWidget(new QWidget, 0, Qt::AlignRight);
-    mainlt->insertLayout(0, spinlt);
-    mainlt->addLayout(buttonlt);
 
-    connect(add, &QAbstractButton::released, this, &AddSpriteDialog::on_accept);
-    connect(close, &QAbstractButton::released, this, &AddSpriteDialog::on_reject);
-    connect(id, QOverload<int>::of(&QSpinBox::valueChanged),
-            this, &AddSpriteDialog::sb_values_changed);
-    connect(eb, QOverload<int>::of(&QSpinBox::valueChanged),
-            this, &AddSpriteDialog::sb_values_changed);
+    connect(add, &QAbstractButton::released, this, &AddSpriteDialog::accept);
+    connect(close, &QAbstractButton::released, this, &AddSpriteDialog::reject);
 }
 
-void AddSpriteDialog::on_accept()
+void AddSpriteDialog::create_spoiler(QHBoxLayout *lt)
+{
+    QLabel *lb      = new QLabel(QStringLiteral("Not inserted:"));
+    not_ins_list    = new QListWidget;
+    QPushButton *btn = new QPushButton("Show");
+
+    not_ins_list->hide();
+    not_ins_list->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+
+    lt->addWidget(lb);
+    lt->addWidget(btn, 1, Qt::AlignLeft);
+
+    connect(btn, &QAbstractButton::released, [=]() {
+                if (not_ins_list->isHidden()) {
+                    btn->setText("Hide");
+                    not_ins_list->show();
+                } else {
+                    btn->setText("Show");
+                    not_ins_list->hide();
+                }
+            });
+}
+
+void AddSpriteDialog::clear_fields()
 {
     id->setValue(0);
     eb->setValue(0);
-    name->clear();
-    tip->clear();
-    extbt->clear();
-    return accept();
+    spform->name->clear();
+    spform->tip->clear();
+    spform->extbt->clear();
 }
 
-void AddSpriteDialog::on_reject()
+void AddSpriteDialog::init_ext_field()
 {
-    id->setValue(0);
-    eb->setValue(0);
-    name->clear();
-    tip->clear();
-    extbt->clear();
-    return reject();
-}
-
-void AddSpriteDialog::sb_values_changed(int newv)
-{
-    sprite::SpriteKey sk(id->value(), eb->value());
-    toggle_extbox(&sk, nullptr);
+    SpriteKey key(0, 0);
+    spform->toggle_extbox(&key, nullptr);
 }
 
 
 
 EditSpriteDialog::EditSpriteDialog(QWidget *parent)
-    : SpriteFormDialog(parent)
+    : QDialog(parent)
 {
-    QPushButton *save       = new QPushButton(QStringLiteral("Save"));
-    QPushButton *close      = new QPushButton(QStringLiteral("Close"));
     QHBoxLayout *labellt    = new QHBoxLayout;
     QHBoxLayout *buttonlt   = new QHBoxLayout;
-    QLabel *tmp = new QLabel(QStringLiteral("ID:"));
-    QLabel *tmp2 = new QLabel(QStringLiteral("Extra bits:"));
-    id = new QLabel;
-    eb = new QLabel;
+    QVBoxLayout *mainlt     = new QVBoxLayout;
+    QPushButton *save       = new QPushButton(QStringLiteral("Save"));
+    QPushButton *close      = new QPushButton(QStringLiteral("Close"));
+    QWidget *space          = new QWidget;
+    QLabel *tmp             = new QLabel(QStringLiteral("ID:"));
+    QLabel *tmp2            = new QLabel(QStringLiteral("Extra bits:"));
+    id  = new QLabel;
+    eb  = new QLabel;
+    spform = new SpriteForm;
 
     setMinimumWidth(400);
     setWindowTitle(QStringLiteral("Edit Sprite"));
-
     tmp->setAlignment(Qt::AlignRight);
+    id->setAlignment(Qt::AlignLeft);
     tmp2->setAlignment(Qt::AlignRight);
+    eb->setAlignment(Qt::AlignLeft);
+    space->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::MinimumExpanding);
 
     labellt->addWidget(tmp);
     labellt->addWidget(id);
@@ -189,32 +232,49 @@ EditSpriteDialog::EditSpriteDialog(QWidget *parent)
     buttonlt->addWidget(save);
     buttonlt->addWidget(close);
     buttonlt->addWidget(new QWidget, 0, Qt::AlignRight);
-    mainlt->insertLayout(0, labellt);
+    mainlt->addLayout(labellt);
+    mainlt->addWidget(spform);
     mainlt->addLayout(buttonlt);
+    mainlt->addWidget(space, 1);
+    setLayout(mainlt);
 
-    connect(save, &QAbstractButton::released, this, &EditSpriteDialog::on_accept);
-    connect(close, &QAbstractButton::released, this, &EditSpriteDialog::on_reject);
+    connect(save, &QAbstractButton::released, [=]() {
+                return accept();
+            });
+    connect(close, &QAbstractButton::released, [=]() {
+                return reject();
+            });
 }
 
-void EditSpriteDialog::on_accept()
+void EditSpriteDialog::init_fields(const SpriteKey &sk, const SpriteValue &sv)
 {
-    return accept();
-}
-
-void EditSpriteDialog::on_reject()
-{
-    return reject();
-}
-
-void EditSpriteDialog::fill_boxes(const sprite::SpriteKey &sk, const sprite::SpriteValue &sv)
-{
-    QString extmask;
-
-    name->setText(sv.name);
-    name->home(false);
-    tip->setPlainText(sv.tooltip);
-    toggle_extbox(&sk, &sv);
+    spform->name->setText(sv.name);
+    spform->name->home(false);
+    spform->tip->setPlainText(sv.tooltip);
+    spform->toggle_extbox(&sk, &sv);
     id->setText(QString("%1").arg(sk.id, 2, 16, QLatin1Char('0')).toUpper());
     eb->setText(QString::number(sk.extra_bits()));
+}
+
+
+
+EditDisplayDialog::EditDisplayDialog(QWidget *parent)
+    : QDialog(parent)
+{
+    QVBoxLayout *mainlt = new QVBoxLayout;
+    QHBoxLayout *buttonlt   = new QHBoxLayout;
+    QPushButton *save       = new QPushButton(QStringLiteral("Save"));
+    QPushButton *close      = new QPushButton(QStringLiteral("Close"));
+    text = new QLabel(QStringLiteral("not implemented yet, sorry!"));
+
+    setWindowTitle(QStringLiteral("Edit Display Graphics"));
+    buttonlt->addWidget(save);
+    buttonlt->addWidget(close);
+    mainlt->addLayout(buttonlt);
+    mainlt->addWidget(text);
+    setLayout(mainlt);
+
+    connect(save, &QAbstractButton::released, this, &EditDisplayDialog::accept);
+    connect(close, &QAbstractButton::released, this, &EditDisplayDialog::reject);
 }
 

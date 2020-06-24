@@ -1,4 +1,4 @@
-//#define DEBUG
+#define DEBUG
 
 #include "main_window.h"
 
@@ -7,6 +7,7 @@
 #include <QListWidget>
 #include <QPushButton>
 #include <QMenuBar>
+#include <QMenu>
 #include <QAction>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -15,16 +16,19 @@
 #include <QMessageBox>
 #include <QVariant>
 #include <QCloseEvent>
-#include <cassert>
+#include <QList>
 #include "dialogs.h"
 #include "sprite.h"
 #include "tool.h"
+#include "version.h"
 
 #ifdef DEBUG
 #include <QDebug>
+#include <cassert>
 #endif
 
-
+using sprite::SpriteKey;
+using sprite::SpriteValue;
 
 MainWindow::MainWindow(Tool *tool, QWidget *parent)
     : QMainWindow(parent), main_tool(tool), last_dir(".")//QDir::homePath())
@@ -39,6 +43,7 @@ MainWindow::MainWindow(Tool *tool, QWidget *parent)
     sprite_list             = new QListWidget;
     add_dialog              = new AddSpriteDialog(this);
     edit_dialog             = new EditSpriteDialog(this);    
+    display_dialog          = new EditDisplayDialog(this);
 
     center_widget->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Maximum);
     setCentralWidget(center_widget);
@@ -57,35 +62,63 @@ MainWindow::MainWindow(Tool *tool, QWidget *parent)
 }
 
 
+enum Menus : int {
+    FILE_MENU = 0,
+    EDIT_MENU,
+    ABOUT_MENU,
+};
 
 /* NOTE: Private functions */
+void MainWindow::add_menu_item(QMenu *menu, const QString &text, void (MainWindow::*func)(void),
+        bool enable)
+{
+    QAction *act = new QAction(text, this);
+    connect(act, &QAction::triggered, this, func);
+    menu->addAction(act);
+    act->setEnabled(enable);
+}
+
 void MainWindow::create_menu()
 {
-    QMenu *menu;
     QAction *act;
 
-    menu = menuBar()->addMenu("&File");
-    act = new QAction("&Open ROM", this);
-    connect(act, &QAction::triggered, this, &MainWindow::open_file);
-    menu->addAction(act);
-    act = new QAction("&Close ROM", this);
-    connect(act, &QAction::triggered, this, &MainWindow::close_file);
-    menu->addAction(act);
-    menu = menuBar()->addMenu("&About");
+    menus[FILE_MENU] = menuBar()->addMenu("&File");
+    add_menu_item(menus[FILE_MENU], "&Open ROM",            &MainWindow::open_file,     true);
+    add_menu_item(menus[FILE_MENU], "&Close ROM",           &MainWindow::close_file,    true);
+
+    menus[EDIT_MENU] = menuBar()->addMenu("&Edit");
+    add_menu_item(menus[EDIT_MENU], "&Add New Sprite",      &MainWindow::add_sprite,    false);
+    add_menu_item(menus[EDIT_MENU], "&Edit Sprite",         &MainWindow::edit_sprite,   false);
+    add_menu_item(menus[EDIT_MENU], "Edit &Display Graphics", &MainWindow::edit_look,   false);
+    add_menu_item(menus[EDIT_MENU], "&Remove Sprite",       &MainWindow::remove_sprite,     false);
+
+    menus[ABOUT_MENU] = menuBar()->addMenu("&About");
+    act = new QAction("&Version", this);
+    connect(act, &QAction::triggered, display_version);
+    menus[ABOUT_MENU]->addAction(act);
 }
 
 void MainWindow::create_labels(QHBoxLayout *lt)
 {
+ /* QWidget *space1 = new QWidget;
+    QWidget *space2 = new QWidget;*/
     QLabel *tmp     = new QLabel(QStringLiteral("ID:"));
     QLabel *tmp2    = new QLabel(QStringLiteral("Extra bits:"));
     romnamelabel    = new QLabel(QStringLiteral("ROM name:"));
     idlabel         = new QLabel;
     eblabel         = new QLabel;
-
+    
     tmp->setAlignment(Qt::AlignRight);
     tmp2->setAlignment(Qt::AlignRight);
     idlabel->setAlignment(Qt::AlignLeft);
     eblabel->setAlignment(Qt::AlignLeft);
+
+  /*space1->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    space2->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    tmp->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    tmp2->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    idlabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    eblabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);*/
 
     lt->addWidget(tmp);
     lt->addWidget(idlabel);
@@ -102,13 +135,17 @@ void MainWindow::create_buttons(QHBoxLayout *lt)
 
     addspritebtn->setToolTip(QStringLiteral("Add a new sprite."));
     editsprite->setToolTip(QStringLiteral("Edit the selected sprite."));
-    editlook->setToolTip(QStringLiteral("Edit the graphics used by the selected sprite."));
+    editlook->setToolTip(QStringLiteral("Edit the display graphics used by the selected sprite."));
     removesprite->setToolTip(QStringLiteral("Removes the selected sprite."));
 
     addspritebtn->setEnabled(false);
     editsprite->setEnabled(false);
     editlook->setEnabled(false);
     removesprite->setEnabled(false);
+
+    editsprite->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    editlook->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    removesprite->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
     lt->addWidget(new QWidget, 0, Qt::AlignLeft);
     lt->addWidget(editsprite);
@@ -162,6 +199,16 @@ QListWidgetItem *MainWindow::find_item(const sprite::SpriteKey &key, const sprit
     return nullptr;
 }
 
+void MainWindow::enable_disable(bool enable)
+{
+    addspritebtn->setEnabled(enable);
+    editsprite->setEnabled(enable);
+    editlook->setEnabled(enable);
+    removesprite->setEnabled(enable);
+    for (int i = 0; i < 4; i++)
+        menus[EDIT_MENU]->actions()[i]->setEnabled(enable);
+}
+
 
 
 /* NOTE: Static function (mostly messages functions */
@@ -199,7 +246,8 @@ void MainWindow::add_sprite()
 {
     int ret;
     QMessageBox msg;
-
+    
+    add_dialog->clear_fields();
     if (add_dialog->exec() == 0)
         return; // no sprite to add
     sprite::SpriteKey key(add_dialog->getid(), add_dialog->geteb());
@@ -222,7 +270,6 @@ void MainWindow::add_sprite()
         return;
     }
     QListWidgetItem *item = find_item(key, val);
-    assert(item != nullptr);
     sprite_list->setCurrentItem(item);
     editsprite->click();
 }
@@ -241,7 +288,7 @@ void MainWindow::edit_sprite()
     // Fill boxes from the list widget item's respective sprite
     sprite::SpriteKey sk(item->data(Qt::UserRole).value<sprite::SpriteKey>());
     sprite::SpriteValue sv(item->data(Qt::UserRole+1).value<sprite::SpriteValue>());
-    edit_dialog->fill_boxes(sk, sv);
+    edit_dialog->init_fields(sk, sv);
     if (edit_dialog->exec() == 0)
         return;
 
@@ -261,6 +308,7 @@ void MainWindow::edit_sprite()
 
 void MainWindow::edit_look()
 {
+    display_dialog->exec();
 }
 
 void MainWindow::remove_sprite()
@@ -291,6 +339,13 @@ void MainWindow::open_file()
     QMessageBox msg;
     QString item_msg;
     int err;
+    
+    if (main_tool->is_open()) {
+        msg.setText("A ROM is already opened.");
+        msg.setInformativeText("Close it first to open a new one!");
+        msg.exec();
+        return;
+    }
 
     name = QFileDialog::getOpenFileName(this, "Open Image", last_dir,
             "SNES ROM files (*.smc *.sfc)");
@@ -309,11 +364,8 @@ void MainWindow::open_file()
     const sprite::SpriteMap &spmap = main_tool->sprite_map();
     for (auto it = spmap.begin(); it != spmap.end(); it++)
         add_list_item(it.key(), it.value());
-
-    addspritebtn->setEnabled(true);
-    editsprite->setEnabled(true);
-    editlook->setEnabled(true);
-    removesprite->setEnabled(true);
+    enable_disable(true);
+    add_dialog->init_ext_field();
 }
 
 void MainWindow::close_file()
@@ -334,10 +386,7 @@ void MainWindow::close_file()
     }
     sprite_list->clear();
     main_tool->close();
-    addspritebtn->setEnabled(false);
-    editsprite->setEnabled(false);
-    editlook->setEnabled(false);
-    removesprite->setEnabled(false);
+    enable_disable(false);
     romnamelabel->setText("ROM name:");
 }
 
