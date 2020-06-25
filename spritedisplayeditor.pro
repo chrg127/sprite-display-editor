@@ -9,7 +9,7 @@ SOURCES += main_window.cpp \
            dialogs.cpp \
            tool.cpp \
            sprite.cpp \
-           sprite_files.cpp \
+           file_formats.cpp \
            sprite_tools.cpp \
            ext/libsmw.cpp \
            ext/crc32.cpp \
@@ -19,7 +19,7 @@ HEADERS += main_window.h \
            dialogs.h \
            tool.h \
            sprite.h \
-           sprite_files.h \
+           file_formats.h \
            sprite_tools.h \
            ext/libsmw.h \
            ext/crc32.h \

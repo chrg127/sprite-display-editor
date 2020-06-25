@@ -19,7 +19,7 @@ main_window.cpp:        Program Main Window, manages main UI events.
 dialogs.cpp:            The windows opened by the buttons on the main
                         window.
 sprite.cpp:             A small library for working with sprites.
-sprite_files.cpp:       A small library that manages reading and writing of 
+file_formats.cpp:       A small library that manages reading and writing of 
                         some files associated with sprites: .mw2, .mwt, .ssc
                         and .s16. What these files are is described in the
                         .h file.

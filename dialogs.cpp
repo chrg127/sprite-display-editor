@@ -11,6 +11,7 @@
 #include <QFont>
 #include <QValidator>
 #include "sprite.h"
+#include "tool.h"
 
 #ifdef DEBUG
 #include <QDebug>
@@ -91,13 +92,13 @@ void SpriteForm::toggle_extbox(const SpriteKey *key, const SpriteValue *val)
 
 
 
-AddSpriteDialog::AddSpriteDialog(QWidget *parent)
-    : QDialog(parent)
+AddSpriteDialog::AddSpriteDialog(Tool *t, QWidget *parent)
+    : QDialog(parent), main_tool(t)
 {
     QVBoxLayout *mainlt     = new QVBoxLayout;
     QFormLayout *spinlt     = new QFormLayout;
     QHBoxLayout *buttonlt   = new QHBoxLayout;
-    QHBoxLayout *notinslt   = new QHBoxLayout;
+    QHBoxLayout *spoilerlt  = new QHBoxLayout;
     spform = new SpriteForm;
     QWidget *space = new QWidget;
 
@@ -105,14 +106,14 @@ AddSpriteDialog::AddSpriteDialog(QWidget *parent)
     setWindowTitle(QStringLiteral("Add sprite"));
     create_spinboxes(spinlt);
     create_buttons(buttonlt);
-    create_spoiler(notinslt);
+    create_spoiler(spoilerlt);
     space->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::MinimumExpanding);
 
     mainlt->addLayout(spinlt);
     mainlt->addWidget(spform);
     mainlt->addLayout(buttonlt);
-    mainlt->addLayout(notinslt);
-    mainlt->addWidget(not_ins_list);
+    mainlt->addLayout(spoilerlt);
+    mainlt->addWidget(inrom_list);
 
     mainlt->addWidget(space, 1);
     setLayout(mainlt);
@@ -120,10 +121,10 @@ AddSpriteDialog::AddSpriteDialog(QWidget *parent)
 
 void AddSpriteDialog::create_spinboxes(QFormLayout *lt)
 {
-    QLabel *tmp             = new QLabel(QStringLiteral("ID (00 - FF):"));
-    QLabel *tmp2            = new QLabel(QStringLiteral("Extra bits (0 - 3):"));
-    id = new PaddedSpinBox;
-    eb = new PaddedSpinBox;
+    QLabel *tmp     = new QLabel(QStringLiteral("ID (00 - FF):"));
+    QLabel *tmp2    = new QLabel(QStringLiteral("Extra bits (0 - 3):"));
+    id              = new PaddedSpinBox;
+    eb              = new PaddedSpinBox;
 
     id->setRange(0, 0xFF);
     id->setDisplayIntegerBase(16);
@@ -163,24 +164,32 @@ void AddSpriteDialog::create_buttons(QHBoxLayout *buttonlt)
 
 void AddSpriteDialog::create_spoiler(QHBoxLayout *lt)
 {
-    QLabel *lb      = new QLabel(QStringLiteral("Not inserted:"));
-    not_ins_list    = new QListWidget;
-    QPushButton *btn = new QPushButton("Show");
+    QLabel *lb  = new QLabel(QStringLiteral("Inserted in ROM, not yet added:"));
+    QPushButton *btn = new QPushButton(QStringLiteral("Show"));
+    inrom_list  = new QListWidget;
 
-    not_ins_list->hide();
-    not_ins_list->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    inrom_list->hide();
+    inrom_list->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
     lt->addWidget(lb);
     lt->addWidget(btn, 1, Qt::AlignLeft);
 
     connect(btn, &QAbstractButton::released, [=]() {
-                if (not_ins_list->isHidden()) {
+                if (inrom_list->isHidden()) {
                     btn->setText("Hide");
-                    not_ins_list->show();
+                    inrom_list->show();
                 } else {
                     btn->setText("Show");
-                    not_ins_list->hide();
+                    inrom_list->hide();
                 }
+            });
+    connect(inrom_list, &QListWidget::itemDoubleClicked, [=]() {
+                QListWidgetItem *item = inrom_list->currentItem();
+                const unsigned int sprid = item->data(Qt::UserRole).value<unsigned int>();
+                id->setValue(sprid);
+                if (eb->value() != 2 && eb->value() != 3)
+                    eb->setValue(2);
+                spform->name->setFocus();
             });
 }
 
@@ -197,6 +206,24 @@ void AddSpriteDialog::init_ext_field()
 {
     SpriteKey key(0, 0);
     spform->toggle_extbox(&key, nullptr);
+}
+
+void AddSpriteDialog::init_inromlist()
+{
+    QListWidgetItem *item;
+    QString item_msg;
+    unsigned int i;
+    const unsigned int *inserted = main_tool->inserted_sprites();
+    const unsigned int count = main_tool->inserted_count();
+
+    for (i = 0; i < count; i++) {
+        if (main_tool->is_in_map(inserted[i]))
+            continue;
+        item_msg = QString("ID: ") + QString("%1").arg(inserted[i], 2, 16, QLatin1Char('0')).toUpper();
+        item = new QListWidgetItem(item_msg);
+        item->setData(Qt::UserRole, inserted[i]);
+        inrom_list->addItem(item);
+    }
 }
 
 

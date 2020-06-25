@@ -37,12 +37,16 @@
 #ifndef _SPRITE_H_
 #define _SPRITE_H_
 
-#include <QVector>
-//#define DEBUG
 #define USE_QT
+//#define DEBUG
 
+#include "sprite_defines.h"
 #ifdef USE_QT
+#include <QVector>
 #include <QMetaType>
+#else
+#include <vector>
+#include <string>
 #endif
 
 class QString;
@@ -64,8 +68,6 @@ namespace sprite {
  * The table is divided in four tables of 0x100 bytes each: The first one 
  * corresponds to extra bit 0, the second to extra bit 1, etc. */
 
-#define SPRITE_MAX_DATA_SIZE 0xF
-#define SPRITE_DEF_DATA_SIZE 0x3
 
 /* Copies the size table from the ROM. If it doesn't exist, it fills the local one
  * with the default size (3) . */

@@ -7,6 +7,7 @@
 #include <cstring>
 #include <cassert>
 #include "ext/libsmw.h"
+#include "sprite_defines.h"
 
 #ifdef DEBUG
 #include <QDebug>
@@ -18,10 +19,6 @@ namespace sprite {
  * It is worth noting that due to static initialization, this array will always be initializated
  * with 0s, instead of default value 3. This is intentional, and can be used to check if sprite size 
  * have been loaded or not. */
-
-#define SIZE_TABLE_MAX 0x400
-#define SIZE_TABLE_PEREB 0x100
-
 static unsigned char _size_table[SIZE_TABLE_MAX];
 
 void load_size_table(smw::ROM &rom)

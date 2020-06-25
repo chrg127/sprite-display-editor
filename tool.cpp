@@ -1,16 +1,23 @@
-#define DEBUG
 
 #include "tool.h"
 
 #include <QString>
 #include <QMultiMap>
+#include "sprite_defines.h"
 #include "sprite.h"
-#include "sprite_files.h"
+#include "file_formats.h"
 #include "ext/libsmw.h"
 #include "ext/asar_errors_small.h"
 #include "sprite_tools.h"
 
+//#define DEBUG
+
+#ifdef DEBUG
 #include <QDebug>
+#endif
+
+using sprite::SpriteKey;
+using sprite::SpriteValue;
 
 /* opens rom, fills sprite map. Returns 0 for success, 1 for minor error (no need to report),
  * 2 for critical error (should report) */
@@ -25,17 +32,18 @@ int Tool::open(const QString &rompath, QString &errors)
         errors += "Failed to open ROM";
         return 2;
     }
+
     sprite::load_size_table(main_rom);
 
-    if (check_pixi_inserted(main_rom)) {
-        int arrid[0xFF];
-        unsigned int arridsize = 0;
-        find_pixi_sprites(main_rom, arrid, &arridsize);
-        qDebug() << arridsize;
-        for (unsigned int i = 0; i < arridsize; i++)
-            qDebug() << "ID:" << arrid[i];
+    // Find out how many sprites were inserted in the ROM. (working feature)
+    if (sprite::check_pixi_inserted(main_rom) && !sprite::check_pixi_perlevel(main_rom)) {
+        sprite::find_pixi_sprites(main_rom, inserted, &_inserted_count);
+#ifdef DEBUG
+        qDebug() << _inserted_count;
+        for (unsigned int i = 0; i < _inserted_count; i++)
+            qDebug() << "ID:" << inserted[i];
+#endif
     }
-
 
     err = mw2_mwt_readfile(_sprite_map, rom_filename);
     // couldn't open files = likely not an user error, since you CAN edit ROMs
@@ -64,6 +72,13 @@ void Tool::close(void)
     smw::closerom(&main_rom, false);
     _open = false;
     _unsaved = false;
+}
+
+void Tool::save()
+{
+    mw2_writefile(_sprite_map, rom_filename);
+    mwt_writefile(_sprite_map, rom_filename);
+    ssc_writefile(_sprite_map, rom_filename);
 }
 
 /* Updates a sprite. This probably could be achieved with a sprite_map.replace() - but I don't
@@ -105,10 +120,9 @@ void Tool::remove_sprite(sprite::SpriteKey &key, sprite::SpriteValue &val)
     _unsaved = true;
 }
 
-void Tool::save()
+bool Tool::is_in_map(int id)
 {
-    mw2_writefile(_sprite_map, rom_filename);
-    mwt_writefile(_sprite_map, rom_filename);
-    ssc_writefile(_sprite_map, rom_filename);
+    SpriteKey key(id, 2);
+    return _sprite_map.find(key) != _sprite_map.end();
 }
 

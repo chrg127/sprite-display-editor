@@ -421,6 +421,15 @@ int pctosnes(int addr, ROM *rom)
     return -1;
 }
 
+inline void buildptr(unsigned int addr, unsigned char bank, 
+        unsigned char page, unsigned char offset)
+{
+    addr = 0;
+    addr = bank << 16;
+    addr |= page << 8;
+    addr |= offset;
+}
+
 }
 /* *********** Static functions first ************* */
 

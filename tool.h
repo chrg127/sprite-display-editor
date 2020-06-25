@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QMultiMap>
 #include "sprite.h"
+#include "sprite_defines.h"
 #include "ext/libsmw.h"
 
 /* What is this:
@@ -20,6 +21,8 @@ private:
     QString rom_filename;
     bool _open = false;
     bool _unsaved = false;
+    unsigned int inserted[SPRITE_ID_MAX];
+    unsigned int _inserted_count = 0;
 
 public:
     /* libsmw doesn't have any ROM initialization by design. So let's do it here. (if it happens
@@ -53,13 +56,24 @@ public:
         return _open;
     }
 
+    const unsigned int *inserted_sprites() const
+    {
+        return inserted;
+    }
+
+    unsigned int inserted_count() const
+    {
+        return _inserted_count;
+    }
+
     int open(const QString &rompath, QString &errors);
     void close(void);
+    void save();
     bool update_sprite(const sprite::SpriteKey &key, const sprite::SpriteValue &oldvalue,
             const sprite::SpriteValue &newvalue);
     int insert_sprite(const sprite::SpriteKey &key, const sprite::SpriteValue &val);
     void remove_sprite(sprite::SpriteKey &key, sprite::SpriteValue &val);
-    void save();
+    bool is_in_map(int id);
 };
 
 #endif

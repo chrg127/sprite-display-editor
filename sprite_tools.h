@@ -1,27 +1,32 @@
 #ifndef SPRITE_TOOLS_H
 #define SPRITE_TOOLS_H
 
+#include "sprite_defines.h"
+
 namespace smw {
     struct ROM;
 }
 
-/* Checks if sprites are inserted with PIXI.
- * If they are, then the 4 bytes at $02FFE2 are equal to "STSD".
- * (no, I have no idea what's the meaning of that string) */
+#define TAB_LINE_LEN 16
+
+namespace sprite {
+
+/* Checks if sprites are inserted with PIXI. */
 bool check_pixi_inserted(smw::ROM &rom);
 
-void find_pixi_sprites(smw::ROM &rom, int arrid[0xFF], unsigned int *sprnum);
+/* Checks if PIXI's per-level feature is enabled. */
+bool check_pixi_perlevel(smw::ROM &rom);
 
-/* === Global Sprite Table ===
- * A table that holds bytes from the sprite's CFG file and its insertion address.
- * Example:
- * 01 36 0D 0C 30 BE 1A C4 B0 CA 10 C1 CA 10 00 00
- * And corresponding CFG file:
- * 01
- * 36
- * 0D 0C 30 BE 1A C4
- * 00 00
- * INIT address: $10CAB0
- * MAIN address: $10CAC1 */
+/* Finds the IDs of all inserted normal sprites (I.E. not shooters, generators, etc.)
+ * and puts them inside arrid, with sprnum indicating the number of sprites found.
+ * This function assumes that no PIXI features, such as per-level sprites were used. */
+void find_pixi_sprites(smw::ROM &rom, unsigned int arrid[SPRITE_ID_MAX], unsigned int *sprnum);
+
+/* Prints sprite info from the global table. Use it after reading a line from it. */
+#ifdef DEBUG
+void print_sprite_info(unsigned int spriteinfo[TAB_LINE_LEN-1]);
+#endif
+
+} // namespace sprite
 
 #endif

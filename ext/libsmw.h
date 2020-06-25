@@ -74,6 +74,9 @@ int check_header(ROM *rom);
 int snestopc(int addr, ROM *rom);
 int pctosnes(int addr, ROM *rom);
 
+inline void buildptr(unsigned int addr, unsigned char bank, 
+        unsigned char page, unsigned char offset);
+
 }
 /*
 void writeromdata(int pcoffset, const void * indata, int numbytes,

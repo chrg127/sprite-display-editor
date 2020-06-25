@@ -1,12 +1,13 @@
 //#define DEBUG
 
-#include "sprite_files.h"
+#include "file_formats.h"
 
 #include <QFile>
 #include <QTextStream>
 #include <QDataStream>
 #include <QStringList>
 #include "ext/libsmw.h"
+#include "sprite_defines.h"
 
 #ifdef DEBUG
 #include <QDebug>

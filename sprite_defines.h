@@ -1,0 +1,10 @@
+#ifndef SPRITE_DEFINES_H
+#define SPRITE_DEFINES_H
+
+#define SPRITE_MAX_DATA_SIZE 0xF
+#define SPRITE_DEF_DATA_SIZE 0x3
+#define SPRITE_ID_MAX 0xFF
+#define SIZE_TABLE_MAX 0x400
+#define SIZE_TABLE_PEREB 0x100
+
+#endif

@@ -5,6 +5,7 @@
 #include <QLineEdit>
 #include <QPlainTextEdit>
 #include <QSpinBox>
+#include "sprite_defines.h"
 
 class QPushButton;
 class QLabel;
@@ -16,6 +17,7 @@ namespace sprite {
     class SpriteKey;
     class SpriteValue;
 }
+class Tool;
 
 /* Just a simple class made so I could have padding
  * (fuck QT for not adding padding for spinboxes */
@@ -51,19 +53,21 @@ public:
 class AddSpriteDialog : public QDialog {
     Q_OBJECT
 private:
+    Tool *main_tool;
     SpriteForm *spform;
     PaddedSpinBox *id, *eb;
-    QListWidget *not_ins_list;
+    QListWidget *inrom_list;
 
     void create_spinboxes(QFormLayout *lt);
     void create_buttons(QHBoxLayout *lt);
     void create_spoiler(QHBoxLayout *lt);
 
 public:
-    AddSpriteDialog(QWidget *parent = nullptr);
+    AddSpriteDialog(Tool *t, QWidget *parent = nullptr);
     ~AddSpriteDialog() { }
 
     void init_ext_field();
+    void init_inromlist();
     void clear_fields();
 
     unsigned char getid() const

@@ -41,7 +41,7 @@ MainWindow::MainWindow(Tool *tool, QWidget *parent)
     QHBoxLayout *buttonlt   = new QHBoxLayout;
     QVBoxLayout *mainlt     = new QVBoxLayout(center_widget);
     sprite_list             = new QListWidget;
-    add_dialog              = new AddSpriteDialog(this);
+    add_dialog              = new AddSpriteDialog(tool, this);
     edit_dialog             = new EditSpriteDialog(this);    
     display_dialog          = new EditDisplayDialog(this);
 
@@ -246,7 +246,7 @@ void MainWindow::add_sprite()
 {
     int ret;
     QMessageBox msg;
-    
+
     add_dialog->clear_fields();
     if (add_dialog->exec() == 0)
         return; // no sprite to add
@@ -339,7 +339,7 @@ void MainWindow::open_file()
     QMessageBox msg;
     QString item_msg;
     int err;
-    
+
     if (main_tool->is_open()) {
         msg.setText("A ROM is already opened.");
         msg.setInformativeText("Close it first to open a new one!");
@@ -358,7 +358,7 @@ void MainWindow::open_file()
         return;
     }
 
-    // No errors found, setup the widgets
+    // No errors found, setup the widgets and dialogs
     last_dir = name;
     romnamelabel->setText("ROM name: " + QFileInfo(name).fileName());
     const sprite::SpriteMap &spmap = main_tool->sprite_map();
@@ -366,6 +366,7 @@ void MainWindow::open_file()
         add_list_item(it.key(), it.value());
     enable_disable(true);
     add_dialog->init_ext_field();
+    add_dialog->init_inromlist();
 }
 
 void MainWindow::close_file()
