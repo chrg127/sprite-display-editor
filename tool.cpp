@@ -28,7 +28,12 @@ int Tool::open(const QString &rompath, QString &errors)
     sprite::load_size_table(main_rom);
 
     if (check_pixi_inserted(main_rom)) {
-        find_pixi_sprites(main_rom);
+        int arrid[0xFF];
+        unsigned int arridsize = 0;
+        find_pixi_sprites(main_rom, arrid, &arridsize);
+        qDebug() << arridsize;
+        for (unsigned int i = 0; i < arridsize; i++)
+            qDebug() << "ID:" << arrid[i];
     }
 
 

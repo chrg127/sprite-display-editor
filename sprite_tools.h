@@ -10,7 +10,7 @@ namespace smw {
  * (no, I have no idea what's the meaning of that string) */
 bool check_pixi_inserted(smw::ROM &rom);
 
-void find_pixi_sprites(smw::ROM &rom);
+void find_pixi_sprites(smw::ROM &rom, int arrid[0xFF], unsigned int *sprnum);
 
 /* === Global Sprite Table ===
  * A table that holds bytes from the sprite's CFG file and its insertion address.
