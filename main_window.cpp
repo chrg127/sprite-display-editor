@@ -157,6 +157,7 @@ QListWidgetItem *MainWindow::add_list_item(const sprite::SpriteKey &key, const s
     item = new QListWidgetItem(item_msg);
     item->setData(Qt::UserRole, QVariant::fromValue(key));
     item->setData(Qt::UserRole+1, QVariant::fromValue(val));
+    item->setIcon(main_tool->get_icon(key, val));
 
     if (pos == -1)
         sprite_list->addItem(item);

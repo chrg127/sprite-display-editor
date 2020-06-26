@@ -3,6 +3,9 @@
 
 #include <QString>
 #include <QMultiMap>
+#include <QPixmap>
+#include <QColor>
+#include <QIcon>
 #include "sprite_defines.h"
 #include "sprite.h"
 #include "file_formats.h"
@@ -10,7 +13,7 @@
 #include "ext/asar_errors_small.h"
 #include "sprite_tools.h"
 
-//#define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 #include <QDebug>
@@ -124,5 +127,35 @@ bool Tool::is_in_map(int id)
 {
     SpriteKey key(id, 2);
     return _sprite_map.find(key) != _sprite_map.end();
+}
+
+
+const QIcon &Tool::get_icon(const SpriteKey &key, const SpriteValue &val)
+{
+    static QIcon test_icon;
+    static QPixmap pixmap(32, 32);
+    static QImage img(32, 32, QImage::Format_RGB32);
+    static QColor col;
+    static bool done = false;
+
+    if (done)
+        return test_icon;
+
+    qDebug() << "creating image";
+    for (int i = 0; i < 32; i++) {
+        for (int j = 0; j < 32; j++) {
+            if (i%2 == 0 || j%2 == 0)
+                col.setRgb(0xFF, 0xFF, 0xFF);
+            else
+                col.setRgb(0, 0, 0);
+            img.setPixelColor(i, j, col);
+        }
+    }
+
+    QPixmap pixmap2 = pixmap.fromImage(img);
+    qDebug() << pixmap2;
+    test_icon.addPixmap(pixmap2);
+    done = true;
+    return test_icon;
 }
 

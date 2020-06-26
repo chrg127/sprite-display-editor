@@ -7,6 +7,8 @@
 #include "sprite_defines.h"
 #include "ext/libsmw.h"
 
+class QIcon;
+
 /* What is this:
  * This is a half-assed implementation of a Singleton, which means it should be a class with only
  * one instance, expect you can *technically* create more instances. I don't care about it, though,
@@ -74,6 +76,7 @@ public:
     int insert_sprite(const sprite::SpriteKey &key, const sprite::SpriteValue &val);
     void remove_sprite(sprite::SpriteKey &key, sprite::SpriteValue &val);
     bool is_in_map(int id);
+    const QIcon &get_icon(const sprite::SpriteKey &key, const sprite::SpriteValue &val);
 };
 
 #endif
