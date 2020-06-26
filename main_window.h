@@ -45,8 +45,6 @@ private:
     EditSpriteDialog *edit_dialog;
     EditDisplayDialog *display_dialog;
 
-    void add_menu_item(QMenu *menu, const QString &text, void (MainWindow::*func)(void),
-        bool enable);
     void create_menu();
     void create_labels(QHBoxLayout *lt);
     void create_buttons(QHBoxLayout *lt);

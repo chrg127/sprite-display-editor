@@ -5,6 +5,7 @@
 #include <QLineEdit>
 #include <QPlainTextEdit>
 #include <QSpinBox>
+#include <QListWidget>
 #include "sprite_defines.h"
 
 class QPushButton;
@@ -12,7 +13,6 @@ class QLabel;
 class QVBoxLayout;
 class QHBoxLayout;
 class QFormLayout;
-class QListWidget;
 namespace sprite {
     class SpriteKey;
     class SpriteValue;
@@ -93,6 +93,11 @@ public:
     QString get_ext() const
     {
         return spform->extbt->text();
+    }
+
+    void clear_inromlist()
+    {
+        inrom_list->clear();
     }
 };
 

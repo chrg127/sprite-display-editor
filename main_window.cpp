@@ -59,7 +59,11 @@ MainWindow::MainWindow(Tool *tool, QWidget *parent)
 
     connect(sprite_list, &QListWidget::currentItemChanged, this, &MainWindow::item_changed);
     connect(sprite_list, &QListWidget::itemDoubleClicked, this, &MainWindow::edit_sprite);
+
+    // Disable buttons, menu actions, etc.
+    enable_disable(false);
 }
+
 
 
 enum Menus : int {
@@ -69,57 +73,36 @@ enum Menus : int {
 };
 
 /* NOTE: Private functions */
-void MainWindow::add_menu_item(QMenu *menu, const QString &text, void (MainWindow::*func)(void),
-        bool enable)
-{
-    QAction *act = new QAction(text, this);
-    connect(act, &QAction::triggered, this, func);
-    menu->addAction(act);
-    act->setEnabled(enable);
-}
-
 void MainWindow::create_menu()
 {
     QAction *act;
 
     menus[FILE_MENU] = menuBar()->addMenu("&File");
-    add_menu_item(menus[FILE_MENU], "&Open ROM",            &MainWindow::open_file,     true);
-    add_menu_item(menus[FILE_MENU], "&Close ROM",           &MainWindow::close_file,    true);
+    menus[FILE_MENU]->addAction("&Open ROM",  this, SLOT(open_file()));
+    menus[FILE_MENU]->addAction("&Close ROM", this, SLOT(close_file()));
 
     menus[EDIT_MENU] = menuBar()->addMenu("&Edit");
-    add_menu_item(menus[EDIT_MENU], "&Add New Sprite",      &MainWindow::add_sprite,    false);
-    add_menu_item(menus[EDIT_MENU], "&Edit Sprite",         &MainWindow::edit_sprite,   false);
-    add_menu_item(menus[EDIT_MENU], "Edit &Display Graphics", &MainWindow::edit_look,   false);
-    add_menu_item(menus[EDIT_MENU], "&Remove Sprite",       &MainWindow::remove_sprite,     false);
+    menus[EDIT_MENU]->addAction("&Add new sprite",      this, SLOT(add_sprite()));
+    menus[EDIT_MENU]->addAction("&Edit Sprite",         this, SLOT(edit_sprite()));
+    menus[EDIT_MENU]->addAction("Edit &Display Graphics", this, SLOT(edit_look()));
+    menus[EDIT_MENU]->addAction("&Remove Sprite",       this, SLOT(remove_sprite()));
 
     menus[ABOUT_MENU] = menuBar()->addMenu("&About");
-    act = new QAction("&Version", this);
+    act = menus[ABOUT_MENU]->addAction("&Version");
     connect(act, &QAction::triggered, display_version);
-    menus[ABOUT_MENU]->addAction(act);
 }
 
 void MainWindow::create_labels(QHBoxLayout *lt)
 {
- /* QWidget *space1 = new QWidget;
-    QWidget *space2 = new QWidget;*/
     QLabel *tmp     = new QLabel(QStringLiteral("ID:"));
     QLabel *tmp2    = new QLabel(QStringLiteral("Extra bits:"));
     romnamelabel    = new QLabel(QStringLiteral("ROM name:"));
     idlabel         = new QLabel;
     eblabel         = new QLabel;
-    
     tmp->setAlignment(Qt::AlignRight);
     tmp2->setAlignment(Qt::AlignRight);
     idlabel->setAlignment(Qt::AlignLeft);
     eblabel->setAlignment(Qt::AlignLeft);
-
-  /*space1->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    space2->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    tmp->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    tmp2->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    idlabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    eblabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);*/
-
     lt->addWidget(tmp);
     lt->addWidget(idlabel);
     lt->addWidget(tmp2);
@@ -207,6 +190,8 @@ void MainWindow::enable_disable(bool enable)
     removesprite->setEnabled(enable);
     for (int i = 0; i < 4; i++)
         menus[EDIT_MENU]->actions()[i]->setEnabled(enable);
+    menus[FILE_MENU]->actions()[0]->setEnabled(!enable);
+    menus[FILE_MENU]->actions()[1]->setEnabled(enable);
 }
 
 
@@ -389,6 +374,7 @@ void MainWindow::close_file()
     main_tool->close();
     enable_disable(false);
     romnamelabel->setText("ROM name:");
+    add_dialog->clear_inromlist();
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
