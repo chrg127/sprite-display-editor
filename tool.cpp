@@ -13,7 +13,7 @@
 #include "ext/asar_errors_small.h"
 #include "sprite_tools.h"
 
-#define DEBUG
+//#define DEBUG
 
 #ifdef DEBUG
 #include <QDebug>
@@ -140,8 +140,9 @@ const QIcon &Tool::get_icon(const SpriteKey &key, const SpriteValue &val)
 
     if (done)
         return test_icon;
-
+#ifdef DEBUG
     qDebug() << "creating image";
+#endif
     for (int i = 0; i < 32; i++) {
         for (int j = 0; j < 32; j++) {
             if (i%2 == 0 || j%2 == 0)
@@ -153,7 +154,9 @@ const QIcon &Tool::get_icon(const SpriteKey &key, const SpriteValue &val)
     }
 
     QPixmap pixmap2 = pixmap.fromImage(img);
+#ifdef DEBUG
     qDebug() << pixmap2;
+#endif
     test_icon.addPixmap(pixmap2);
     done = true;
     return test_icon;

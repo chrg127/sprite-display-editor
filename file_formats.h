@@ -76,5 +76,17 @@ int mwt_writefile(sprite::SpriteMap &spmap, const QString &romname);
 /* Writes to the ssc file. Returns 1 for file error. */
 int ssc_writefile(sprite::SpriteMap &spmap, const QString &romname);
 
+
+
+struct Maptile;
+/* 
+ * s16 file format:
+ * 43 2D 53 2D 44 2D 54 2D
+ * First byte: 43: Tile number, offset into sprite tile map
+ * Second byte: 2D: YXPPCCCT ?
+ */
+int s16_readfile(Maptile arrtiles[0x2000], char *romname);
+int s16_writefile();
+
 #endif
 

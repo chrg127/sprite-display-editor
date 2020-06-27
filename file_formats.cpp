@@ -6,13 +6,16 @@
 #include <QTextStream>
 #include <QDataStream>
 #include <QStringList>
+#include <cstdio>
+#include <cstddef>
+#include <cstring>
+#include <cassert>
 #include "ext/libsmw.h"
 #include "sprite_defines.h"
+#include "map16.h"
 
 #ifdef DEBUG
 #include <QDebug>
-#include <iostream>
-#include <iomanip>
 #endif
 
 /*
@@ -321,6 +324,60 @@ int ssc_writefile(sprite::SpriteMap &spmap, const QString &outname)
     }
 
     sscfile.close();
+    return 0;
+}
+
+int s16_readfile(Maptile arrtiles[0x2000], char *romname)
+{
+    std::FILE *sfile;
+    unsigned char buf[16];
+    std::size_t bread;
+
+    sfile = std::fopen(std::strcat(romname, ".s16"), "rb");
+    if (!sfile)
+        return 1;
+
+    int tile16no = 0, tile8x = 0, tile8y = 0, tile8n = 0;
+    while (!std::feof(sfile)) {
+        bread = std::fread(buf, 1, 2, sfile);
+        // file error
+        if (bread != 2 && bread != 0)
+            return 2;
+        //end of file
+        if (bread == 0)
+            break;
+
+        arrtiles[tile16no].tile8[tile8x+2*tile8y].y = buf[1] & TileFields::Y >> 7;
+        arrtiles[tile16no].tile8[tile8x+2*tile8y].x = buf[1] & TileFields::X >> 6;
+        arrtiles[tile16no].tile8[tile8x+2*tile8y].priority = buf[1] & TileFields::PRIORITY >> 5;
+        arrtiles[tile16no].tile8[tile8x+2*tile8y].pal = buf[1] & TileFields::PALETTE >> 2;
+        arrtiles[tile16no].tile8[tile8x+2*tile8y].tt = buf[1] & TileFields::TT >> 3;
+        tile8x++;
+        if (tile8x == 2) {
+            tile8x = 0;
+            tile16no++;
+        }
+        tile8n++;
+        if (tile8n == 32) {
+            tile8n = 0;
+            tile8y = tile8y == 0 ? 1 : 0;
+        }
+        assert(tile16no < 2000);
+/*
+        std::printf("map16 number: %02X\n", buf[0]);
+        std::printf("X: %d, Y: %d\n", x, y);
+        std::printf("priority: %d", priority);
+        std::printf("palette: %d\n", pal);
+        std::printf("tt: %d", tt);
+        std::printf("\n");
+
+        //std::printf("%02X%02X\n", buf[0], buf[1]);*/
+    }
+    return 0;
+}
+
+int s16_writefile()
+{
     return 0;
 }
 
