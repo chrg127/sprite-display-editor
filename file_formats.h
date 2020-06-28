@@ -86,7 +86,7 @@ struct Maptile;
  * Second byte: 2D: YXPPCCCT ?
  */
 int s16_readfile(Maptile arrtiles[0x2000], char *romname);
-int s16_writefile();
+int s16_writefile(Maptile arrtiles[0x2000], char *romname);
 
 #endif
 

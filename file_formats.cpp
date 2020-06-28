@@ -332,52 +332,58 @@ int s16_readfile(Maptile arrtiles[0x2000], char *romname)
     std::FILE *sfile;
     unsigned char buf[16];
     std::size_t bread;
+    int tile16no, tile8no;
 
     sfile = std::fopen(std::strcat(romname, ".s16"), "rb");
     if (!sfile)
         return 1;
 
-    int tile16no = 0, tile8x = 0, tile8y = 0, tile8n = 0;
-    while (!std::feof(sfile)) {
-        bread = std::fread(buf, 1, 2, sfile);
-        // file error
+    tile16no = tile8no = 0;
+    while (bread = std::fread(buf, 1, 2, sfile), bread != 0) {
         if (bread != 2 && bread != 0)
             return 2;
-        //end of file
-        if (bread == 0)
-            break;
-
-        arrtiles[tile16no].tile8[tile8x+2*tile8y].y = buf[1] & TileFields::Y >> 7;
-        arrtiles[tile16no].tile8[tile8x+2*tile8y].x = buf[1] & TileFields::X >> 6;
-        arrtiles[tile16no].tile8[tile8x+2*tile8y].priority = buf[1] & TileFields::PRIORITY >> 5;
-        arrtiles[tile16no].tile8[tile8x+2*tile8y].pal = buf[1] & TileFields::PALETTE >> 2;
-        arrtiles[tile16no].tile8[tile8x+2*tile8y].tt = buf[1] & TileFields::TT >> 3;
-        tile8x++;
-        if (tile8x == 2) {
-            tile8x = 0;
+        arrtiles[tile16no].tile8[tile8no].offset = buf[0];
+        arrtiles[tile16no].tile8[tile8no].y = buf[1] & TileFields::Y >> 7;
+        arrtiles[tile16no].tile8[tile8no].x = buf[1] & TileFields::X >> 6;
+        arrtiles[tile16no].tile8[tile8no].priority = buf[1] & TileFields::PRIORITY >> 5;
+        arrtiles[tile16no].tile8[tile8no].pal = buf[1] & TileFields::PALETTE >> 2;
+        arrtiles[tile16no].tile8[tile8no].tt = buf[1] & TileFields::TT >> 3;
+        if (++tile8no == 4) {
+            tile8no = 0;
             tile16no++;
         }
-        tile8n++;
-        if (tile8n == 32) {
-            tile8n = 0;
-            tile8y = tile8y == 0 ? 1 : 0;
-        }
-        assert(tile16no < 2000);
-/*
-        std::printf("map16 number: %02X\n", buf[0]);
-        std::printf("X: %d, Y: %d\n", x, y);
-        std::printf("priority: %d", priority);
-        std::printf("palette: %d\n", pal);
-        std::printf("tt: %d", tt);
-        std::printf("\n");
-
-        //std::printf("%02X%02X\n", buf[0], buf[1]);*/
     }
+    if (tile16no != 0x2000)
+        return 2;
+
     return 0;
 }
 
-int s16_writefile()
+int s16_writefile(Maptile arrtiles[0x2000], char *romname)
 {
+    std::FILE *sfile;
+    int tile16no, tile8no;
+    std::size_t bwritten;
+    char buf[16];
+
+    sfile = std::fopen(std::strcat(romname, ".s16"), "w");
+    if (!sfile)
+        return 1;
+
+    for (tile16no = 0; tile16no < 0x2000; tile16no++) {
+        for (tile8no = 0; tile8no < 4; tile8no++) {
+            buf[0] = arrtiles[tile16no].tile8[tile8no].offset;
+            buf[1] = arrtiles[tile16no].tile8[tile8no].y << 7;
+            buf[1] |= arrtiles[tile16no].tile8[tile8no].x << 6;
+            buf[1] |= arrtiles[tile16no].tile8[tile8no].priority << 5;
+            buf[1] |= arrtiles[tile16no].tile8[tile8no].pal << 2;
+            buf[1] |= arrtiles[tile16no].tile8[tile8no].tt << 3;
+            bwritten = fwrite(buf, 1, 2, sfile);
+            if (bwritten != 2)
+                return 1;
+        }
+    }
+
     return 0;
 }
 

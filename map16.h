@@ -2,8 +2,8 @@
 #define MAP16_H
 
 struct Maptile {
-    char offset;
     struct {
+        char offset;
         char x, y, priority, pal, tt;
     } tile8[4];
 };
