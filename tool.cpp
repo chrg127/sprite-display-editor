@@ -30,7 +30,7 @@ int Tool::open(const QString &rompath, QString &errors)
     bool romerr;
 
     rom_filename = rompath.split(".", QString::SkipEmptyParts).at(0);
-    romerr = smw::openrom(&main_rom, rompath.toLatin1().data(), false);
+    romerr = main_rom.openrom(rompath.toLatin1().data(), false);
     if (!romerr && smw::openromerror == smw::errid_open_rom_failed) {
         errors += "Failed to open ROM";
         return 2;
@@ -72,7 +72,7 @@ int Tool::open(const QString &rompath, QString &errors)
 void Tool::close(void)
 {
     _sprite_map.clear();
-    smw::closerom(&main_rom, false);
+    main_rom.closerom(false);
     _open = false;
     _unsaved = false;
 }

@@ -10,7 +10,7 @@ namespace sprite {
  * (no, I have no idea what's the meaning of that string) */
 bool check_pixi_inserted(smw::ROM &rom)
 {
-    const unsigned char *pixistr = &(rom.data[smw::snestopc(0x02FFE2, &rom)]);
+    unsigned char *pixistr = rom.block_at(0x02FFE2);
     if (std::strncmp((const char *) pixistr, "STSD", 4) != 0)
         return false;
     return true;
@@ -18,7 +18,7 @@ bool check_pixi_inserted(smw::ROM &rom)
 
 bool check_pixi_perlevel(smw::ROM &rom)
 {
-    int flags = rom.data[smw::snestopc(0x02FFE7, &rom)];
+    int flags = rom.at(0x02FFE7);
     return (flags & 0x1) == 1;
 }
 
@@ -48,10 +48,8 @@ void find_pixi_sprites(smw::ROM &rom, unsigned int arrid[SPRITE_ID_MAX], unsigne
     int i, taboffs, tab_size;
 
     // Build pointer to table, then convert to PC.
-    gltab_addr = rom.data[smw::snestopc(0x02FFF0, &rom)] << 16;
-    gltab_addr |= rom.data[smw::snestopc(0x02FFEF, &rom)] << 8;
-    gltab_addr |= rom.data[smw::snestopc(0x02FFEE, &rom)];
-    gltab_addr = smw::snestopc(gltab_addr, &rom);
+    gltab_addr = smw::buildptr(rom.at(0x02FFF0), rom.at(0x02FFEF), rom.at(0x02FFEE));
+    gltab_addr = rom.snestopc(gltab_addr);
 
     // Loop through each line of the table. The line number corresponds to
     // the sprite ID.
@@ -64,15 +62,11 @@ void find_pixi_sprites(smw::ROM &rom, unsigned int arrid[SPRITE_ID_MAX], unsigne
         print_sprite_info(spriteinfo);
 #endif
         // Check if INIT and MAIN ptrs are valid.
-        initptr = (spriteinfo[10] << 16);
-        initptr |= (spriteinfo[9] << 8);
-        initptr |= spriteinfo[8];
+        initptr = smw::buildptr(spriteinfo[10], spriteinfo[9], spriteinfo[8]);
         if (initptr == RTL_PTR)
             continue;
-        mainptr = (spriteinfo[13] << 16);
-        mainptr |= (spriteinfo[12] << 8);
-        mainptr |= spriteinfo[11];
-        if (initptr == RTL_PTR)
+        mainptr = smw::buildptr(spriteinfo[13], spriteinfo[12], spriteinfo[11]);
+        if (mainptr == RTL_PTR)
             continue;
         // save sprite in array.
         arrid[(*foundids)++] = taboffs/TAB_LINE_LEN;

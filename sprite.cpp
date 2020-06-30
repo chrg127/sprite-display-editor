@@ -23,22 +23,20 @@ static unsigned char _size_table[SIZE_TABLE_MAX];
 
 void load_size_table(smw::ROM &rom)
 {
-    unsigned int addr, pc_addr;
+    unsigned int addr, pcaddr;
     int i;
 
     // Check if the table exists
-    if (rom.data[smw::snestopc(0x0EF30F, &rom)] != 0x42) {
+    if (rom.at(0x0EF30F) != 0x42) {
         std::memset(_size_table, SPRITE_DEF_DATA_SIZE, SIZE_TABLE_MAX);
         return;
     }
     // Build table address and copy table
-    addr = rom.data[smw::snestopc(0x0EF30E, &rom)] << 16;
-    addr |= rom.data[smw::snestopc(0x0EF30D, &rom)] << 8;
-    addr |= rom.data[smw::snestopc(0x0EF30C, &rom)];
-    pc_addr = smw::snestopc(addr, &rom);
+    smw::buildptr(rom.at(0x0EF30E), rom.at(0x0EF30D), rom.at(0x0EF30C));
+    pcaddr = rom.snestopc(addr);
     i = 0;
     while (i != SIZE_TABLE_MAX)
-        _size_table[i++] = rom.data[pc_addr++];
+        _size_table[i++] = rom.data[pcaddr++];
 }
 
 

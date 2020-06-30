@@ -32,7 +32,6 @@ int main(int argc, char **argv)
         std::printf("\n");
     }
 
-
     return 0;
 }
 

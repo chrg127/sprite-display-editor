@@ -4,22 +4,16 @@
 
 #pragma once
 
-#ifndef _LIBSMW_H_
-#define _LIBSMW_H_
+#ifndef LIBSMW_H_INCLUDED
+#define LIBSMW_H_INCLUDED
 
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
+#include <cstdio>   // FILE *
+#include <cstdint>  // uint32_t
 #include "asar_errors_small.h"
-//#include "autoarray.h"
 
 namespace smw {
 
 extern asar_errid openromerror;
-
-//extern const unsigned char * romdata;
-//extern int romlen;
-//extern autoarray<writtenblockdata> writtenblocks;
 
 enum mapper_t {
 	invalid_mapper,
@@ -41,41 +35,37 @@ struct writtenblockdata {
 
 struct ROM {
     FILE *file;
-    const unsigned char *data;
+    unsigned char *data;
     int lenght;
     mapper_t mapper;
     bool header;
 
-    /*ROM()
-    {
-        file = nullptr;
-        data = nullptr;
-        lenght = 0;
-        mapper = mapper_t::lorom;
-        header = false;
-    }*/
-/*
-    ~ROM()
-    {
-        if (file)
-            fclose(file);
-        if (data)
-            free((void *)data);
-    }*/
+    ROM()
+        : file(nullptr), data(nullptr), lenght(0),
+          mapper(mapper_t::lorom), header(false)
+    { }
+
+    ~ROM();
+
+    bool openrom(const char * filename, bool confirm=true);
+    int closerom(bool save = true);
+
+    /* Converts a SNES address to a PC address, takes in account the mapper. */
+    int snestopc(int addr);
+    /* Converts a PC address to a SNES address, takes in account the mapper. */
+    int pctosnes(int addr);
+    unsigned char at(int snesaddr);
+    unsigned char *block_at(int snesaddr);
+
+    uint32_t get_crc();
+
+private:
+    bool findmapper();
+    int check_header();
 };
 
-bool openrom(ROM *rom, const char * filename, bool confirm=true);
-int closerom(ROM *rom, bool save = true);
-uint32_t get_rom_crc(ROM *rom);
-
-bool findmapper(ROM *rom);
-int check_header(ROM *rom);
-
-int snestopc(int addr, ROM *rom);
-int pctosnes(int addr, ROM *rom);
-
-inline void buildptr(unsigned int addr, unsigned char bank, 
-        unsigned char page, unsigned char offset);
+/* Builds a SNES pointer out of the three bytes. */
+unsigned int buildptr(unsigned char bank, unsigned char page, unsigned char offset);
 
 }
 /*
