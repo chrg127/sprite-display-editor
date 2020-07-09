@@ -31,6 +31,7 @@ int main(int argc, char **argv)
         }
         std::printf("\n");
     }
+    s16_writefile(arr, romname);
 
     return 0;
 }

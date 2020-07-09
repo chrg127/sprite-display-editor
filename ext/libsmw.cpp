@@ -173,14 +173,19 @@ uint32_t ROM::get_crc()
     uint32_t rom_crc;
     uint8_t *filedata;
 
+    // Nothing opened yet? error.
     if (!file || lenght == 0)
         return 1;
-    filedata = (uint8_t *) malloc(lenght*sizeof(uint8_t) + header*HEADER_LEN);
+    
+    // Allocate a buffer containing both header data and ROM data.
+    filedata = (uint8_t *) std::malloc(lenght*sizeof(uint8_t) + header*HEADER_LEN);
     if (header) {
         std::fseek(file, 0, SEEK_SET);
         std::fread(filedata, sizeof(uint8_t), HEADER_LEN, file);
     }
     std::memcpy(filedata + (header * HEADER_LEN), data, sizeof(uint8_t) * (size_t)lenght);
+
+    // Get CRC32.
     rom_crc = crc32(filedata, (unsigned int) (lenght + header * HEADER_LEN));
     std::free(filedata);
 

@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstring>
 #include <cassert>
+#include <cstdint>
 #include "ext/libsmw.h"
 #include "sprite_defines.h"
 #include "map16.h"
@@ -329,29 +330,31 @@ int ssc_writefile(sprite::SpriteMap &spmap, const QString &outname)
 
 int s16_readfile(Maptile arrtiles[0x2000], char *romname)
 {
-    std::FILE *sfile;
-    unsigned char buf[16];
-    std::size_t bread;
-    int tile16no, tile8no;
+    FILE *sfile;
+    uint16_t buf[4];
+    size_t bread;
+    int tile16no;
 
     sfile = std::fopen(std::strcat(romname, ".s16"), "rb");
+    romname[strlen(romname)-4] = '\0';
     if (!sfile)
         return 1;
 
-    tile16no = tile8no = 0;
-    while (bread = std::fread(buf, 1, 2, sfile), bread != 0) {
-        if (bread != 2 && bread != 0)
+    /*
+     * Each 8 bytes is a full, 16x16 tile. Each 2 bytes is a 8x8 tile.
+     * At each iteration, read 8 bytes (2*4) and fill the 4 8x8 tiles of a 16x16 tile.
+     * The file therefore must have a size of a multiple of 8. If it doesn't,
+     * return file format error
+     */
+    tile16no = 0;
+    while (bread = std::fread(buf, 2, 4, sfile), bread != 0) {
+        if (bread != 4 && bread != 0)
             return 2;
-        arrtiles[tile16no].tile8[tile8no].offset = buf[0];
-        arrtiles[tile16no].tile8[tile8no].y = buf[1] & TileFields::Y >> 7;
-        arrtiles[tile16no].tile8[tile8no].x = buf[1] & TileFields::X >> 6;
-        arrtiles[tile16no].tile8[tile8no].priority = buf[1] & TileFields::PRIORITY >> 5;
-        arrtiles[tile16no].tile8[tile8no].pal = buf[1] & TileFields::PALETTE >> 2;
-        arrtiles[tile16no].tile8[tile8no].tt = buf[1] & TileFields::TT >> 3;
-        if (++tile8no == 4) {
-            tile8no = 0;
-            tile16no++;
-        }
+        arrtiles[tile16no].filltile8(0, buf[0]);
+        arrtiles[tile16no].filltile8(1, buf[1]);
+        arrtiles[tile16no].filltile8(2, buf[2]);
+        arrtiles[tile16no].filltile8(3, buf[3]);
+        tile16no++;
     }
     if (tile16no != 0x2000)
         return 2;
@@ -361,27 +364,31 @@ int s16_readfile(Maptile arrtiles[0x2000], char *romname)
 
 int s16_writefile(Maptile arrtiles[0x2000], char *romname)
 {
-    std::FILE *sfile;
-    int tile16no, tile8no;
-    std::size_t bwritten;
-    char buf[16];
+    FILE *sfile;
+    size_t bwritten;
+    uint16_t buf[16];
+    int i;
 
     sfile = std::fopen(std::strcat(romname, ".s16"), "w");
+    romname[strlen(romname)-4] = '\0';
     if (!sfile)
         return 1;
 
-    for (tile16no = 0; tile16no < 0x2000; tile16no++) {
-        for (tile8no = 0; tile8no < 4; tile8no++) {
-            buf[0] = arrtiles[tile16no].tile8[tile8no].offset;
+    for (i = 0; i < 0x2000; i++) {
+        buf[0] = arrtiles[i].writetile8(0);
+        buf[1] = arrtiles[i].writetile8(1);
+        buf[2] = arrtiles[i].writetile8(2);
+        buf[3] = arrtiles[i].writetile8(3);
+        bwritten = fwrite(buf, 2, 4, sfile);
+        if (bwritten != 4)
+            return 1;
+            /*buf[0] = arrtiles[tile16no].tile8[tile8no].offset;
             buf[1] = arrtiles[tile16no].tile8[tile8no].y << 7;
             buf[1] |= arrtiles[tile16no].tile8[tile8no].x << 6;
             buf[1] |= arrtiles[tile16no].tile8[tile8no].priority << 5;
             buf[1] |= arrtiles[tile16no].tile8[tile8no].pal << 2;
-            buf[1] |= arrtiles[tile16no].tile8[tile8no].tt << 3;
-            bwritten = fwrite(buf, 1, 2, sfile);
-            if (bwritten != 2)
-                return 1;
-        }
+            buf[1] |= arrtiles[tile16no].tile8[tile8no].tt << 3;*/
+
     }
 
     return 0;

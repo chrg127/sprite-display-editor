@@ -79,6 +79,7 @@ int ssc_writefile(sprite::SpriteMap &spmap, const QString &romname);
 
 
 struct Maptile;
+
 /* 
  * s16 file format:
  * 43 2D 53 2D 44 2D 54 2D
