@@ -18,7 +18,7 @@ int main(int argc, char **argv)
     Maptile arr[0x2000];
     int ret = s16_readfile(arr, romname);
     qDebug() << ret;
-    for (int i = 0; i < 0x2000; i++) {
+    /*for (int i = 0; i < 0x2000; i++) {
         std::printf("num: %X\n", i);
         for (int j = 0; j < 4; j++) {
             std::printf("tile %d\n", j);
@@ -30,7 +30,7 @@ int main(int argc, char **argv)
             std::printf("\n");
         }
         std::printf("\n");
-    }
+    }*/
     s16_writefile(arr, romname);
 
     return 0;

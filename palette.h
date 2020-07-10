@@ -17,10 +17,34 @@ struct SNESColor {
     uint8_t green;
     uint8_t red;
 
-    void fill(uint16_t bytes);
-    uint16_t tobytes();
-    int torgb();
-    void fromrgb(int r, int g, int b);
+    void fill(uint16_t bytes)
+    {
+        red     = bytes & RED;
+        green   = bytes & GREEN;
+        blue    = bytes & BLUE;
+    }
+
+    uint16_t tobytes()
+    {
+        uint16_t toret = red;
+        toret |= green << 5;
+        toret |= blue << 10;
+        return toret;
+    }
+
+    void torgb(int *r, int *g, int *b)
+    {
+        *r = red*8;
+        *g = green*8;
+        *b = blue*8;
+    }
+
+    void fromrgb(int r, int g, int b)
+    {
+        red = r/8;
+        green = g/8;
+        blue = b/8;
+    }
 }
 
 enum ColorMasks : int {
@@ -29,8 +53,7 @@ enum ColorMasks : int {
     BLUE    = 0x7C00,
 }
 
-// Sprite Palette x = $00B318 + (#$18 * x). 
-// (Palette E,2 to E,7 and F,2 to F,7)
-void get_global_sprite_palette(smw::ROM &rom, SNESColor *colortab);
+/* Gets the sprite palette (row 8-F) from a SMW ROM. */
+void get_global_sprite_palette(smw::ROM &rom, SNESColor *paltab);
 
 #endif

@@ -80,14 +80,16 @@ int ssc_writefile(sprite::SpriteMap &spmap, const QString &romname);
 
 struct Maptile;
 
+#define S16_MAX_TILES 0x2000
+
 /* 
  * s16 file format:
  * 43 2D 53 2D 44 2D 54 2D
  * First byte: 43: Tile number, offset into sprite tile map
  * Second byte: 2D: YXPPCCCT ?
  */
-int s16_readfile(Maptile arrtiles[0x2000], char *romname);
-int s16_writefile(Maptile arrtiles[0x2000], char *romname);
+int s16_readfile(Maptile arrtiles[S16_MAX_TILES], char *romname);
+int s16_writefile(Maptile arrtiles[S16_MAX_TILES], char *romname);
 
 #endif
 

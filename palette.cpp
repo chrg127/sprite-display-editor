@@ -4,36 +4,6 @@
 #include <cstddef>
 #include "ext/libsmw.h"
 
-void SNESColor::fill(uint16_t bytes)
-{
-    red     = bytes & RED;
-    green   = bytes & GREEN;
-    blue    = bytes & BLUE;
-}
-
-uint16_t SNESColor::tobytes()
-{
-    uint16_t toret = red;
-    toret |= green << 5;
-    toret |= blue << 10;
-    return toret;
-}
-
-int SNESColor::torgb()
-{
-    int toret = red*8 << 16;
-    toret |= green*8 << 8;
-    toret |= blue*8;
-    return toret;
-}
-
-void fromrgb(int r, int g, int b)
-{
-    red = r/8;
-    green = g/8;
-    blue = b/8;
-}
-
 /*
  * 00B280: Palette 8 colours 2-5 in levels, the last four bytes (colours 6-7) are only available during the Nintendo Presents logo; after that, they are overwritten by the first two colours from Mario's palette.
  * $00B28C: Palette 9 colours 2-7 in levels.

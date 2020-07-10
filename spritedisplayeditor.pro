@@ -11,7 +11,6 @@ SOURCES += main_window.cpp \
            sprite.cpp \
            file_formats.cpp \
            sprite_tools.cpp \
-           map16.cpp \
            ext/libsmw.cpp \
            ext/crc32.cpp \
            main.cpp
