@@ -38,6 +38,7 @@ struct Maptile {
     }
 };
 
+/* Default size in bytes for a 16x16 tile and a 8x8 tile. */
 #define T16SIZE 8
 #define T8SIZE 2
 

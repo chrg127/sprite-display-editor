@@ -21,7 +21,7 @@ void get_global_sprite_palette(smw::ROM &rom, SNESColor *paltab, uint8_t num)
     int offs = 0, i;
     uint16_t *block;
 
-    // copy 4 colors only for row 8, then fill the others with 0
+    // copy 4 colors only for row 8, then fill the others with 0 (black)
     for (i = 0, block = (uint16_t *) rom.block_at(0x00B280); i < 4; i++, block++)
         paltab[offs++].fill(block[i]);
     paltab[offs++].fill(0);
@@ -40,7 +40,8 @@ void get_global_sprite_palette(smw::ROM &rom, SNESColor *paltab, uint8_t num)
         paltab[offs++].fill(block[i]);
 
     // copies both row E and row F
-    for (i = 0, block = (uint16_t *) rom.block_at(0x00B2BC); i < 12; i++, block++)
+    for (i = 0, block = (uint16_t *) rom.block_at(0x00B2BC) + num*24;
+         i < 12; i++, block++)
         paltab[offs++].fill(block[i]);
 }
 

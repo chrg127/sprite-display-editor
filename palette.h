@@ -7,10 +7,17 @@
 #define PALETTE_H_INCLUDED
 
 #include <cstdint>
+#include <cstdio>
 
 namespace smw {
     struct ROM;
 }
+
+enum ColorMasks : int {
+    RED     = 0x001F,
+    GREEN   = 0x03E0,
+    BLUE    = 0x7C00,
+};
 
 struct SNESColor {
     uint8_t blue;
@@ -45,15 +52,14 @@ struct SNESColor {
         green = g/8;
         blue = b/8;
     }
-}
 
-enum ColorMasks : int {
-    RED     = 0x001F,
-    GREEN   = 0x03E0,
-    BLUE    = 0x7C00,
-}
+    void print()
+    {
+        std::printf("red = %02X, green = %02X, blue = %02X\n", red, green, blue);
+    }
+};
 
 /* Gets the sprite palette (row 8-F) from a SMW ROM. */
-void get_global_sprite_palette(smw::ROM &rom, SNESColor *paltab);
+void get_global_sprite_palette(smw::ROM &rom, SNESColor *paltab, uint8_t num);
 
 #endif
